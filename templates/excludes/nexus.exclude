@@ -1,0 +1,49 @@
+# ============================================================================
+# PiSync Exclude Template: NEXUS Platform
+# ============================================================================
+# Syncs: agent configs, rules, prompts, CoreConductor settings, scripts
+# Excludes: ChromaDB vectors, Ollama models, runtime state, logs
+# ============================================================================
+
+# Vector DB (too large, node-specific embeddings)
+chromadb/
+chroma_data/
+*.chroma
+
+# Ollama model cache (download per-node)
+models/
+.ollama/
+
+# Runtime state
+*.pid
+*.sock
+*.lock
+.cache/
+
+# Logs
+logs/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Node modules
+node_modules/
+
+# Temp
+tmp/
+.tmp/
+
+# OS / editor
+.DS_Store
+*.swp
+*~
+
+# Node-local
+.pisync-local
+local.conf
+.env
+.env.local

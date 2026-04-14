@@ -1,0 +1,33 @@
+# ============================================================================
+# PiSync Exclude Template: Claude Code Harness (.claude)
+# ============================================================================
+# Syncs: prompts, templates, settings, CLAUDE.md, scripts, harness configs
+# Excludes: runtime state, logs, node-specific artifacts
+# ============================================================================
+
+# Runtime / process state
+*.pid
+*.sock
+*.lock
+.cache/
+
+# Logs (regenerated locally)
+logs/
+*.log
+
+# Temp and scratch
+tmp/
+.tmp/
+*.tmp
+
+# OS / editor artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+
+# Node-local override marker
+.pisync-local
+local.conf

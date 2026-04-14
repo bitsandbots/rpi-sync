@@ -1,0 +1,49 @@
+# ============================================================================
+# PiSync Exclude Template: hydroMazing
+# ============================================================================
+# Syncs: Flask app, React PWA, Arduino firmware, configs
+# Excludes: SQLite DB, sensor logs, node_modules, build artifacts
+# ============================================================================
+
+# Database (node-specific sensor data)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Sensor logs and data files
+data/
+sensor_logs/
+*.csv
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+*.egg-info/
+
+# Node / React build
+node_modules/
+build/
+dist/
+.next/
+
+# Arduino build artifacts
+*.elf
+*.hex
+*.o
+.pio/
+.pioenvs/
+
+# OS / editor
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Node-local
+.pisync-local
+local.conf
+.env.local

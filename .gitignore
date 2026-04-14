@@ -1,0 +1,6 @@
+# Claude Code session state
+.claude/
+.remember/
+
+# PiSync runtime state (per-node, not repo content)
+~/.pisync/

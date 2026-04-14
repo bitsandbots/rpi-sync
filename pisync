@@ -1,0 +1,797 @@
+#!/usr/bin/env bash
+# ============================================================================
+# PiSync — LAN Project Synchronization for Raspberry Pi Networks
+# CoreConduit Consulting Services | MIT License
+# ============================================================================
+# Synchronizes project directories across Raspberry Pi nodes on a LAN using
+# rsync for efficient delta transfers and Avahi/mDNS for zero-config discovery.
+# ============================================================================
+
+set -euo pipefail
+
+PISYNC_VERSION="1.0.0"
+PISYNC_HOME="${PISYNC_HOME:-$HOME/.pisync}"
+PISYNC_CONF="$PISYNC_HOME/pisync.conf"
+PISYNC_LOG="$PISYNC_HOME/pisync.log"
+PISYNC_LOCK="$PISYNC_HOME/pisync.lock"
+PISYNC_STATE="$PISYNC_HOME/state"
+PISYNC_NODES_CACHE="$PISYNC_HOME/nodes.cache"
+
+# ── Colors ──────────────────────────────────────────────────────────────────
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+ORANGE='\033[0;33m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+DIM='\033[2m'
+NC='\033[0m'
+
+# ── Branding ────────────────────────────────────────────────────────────────
+banner() {
+    echo -e "${BLUE}╔══════════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║${NC}  ${BOLD}Pi${ORANGE}Sync${NC} ${DIM}v${PISYNC_VERSION}${NC}                               ${BLUE}║${NC}"
+    echo -e "${BLUE}║${NC}  ${DIM}LAN Project Sync for Pi Networks${NC}             ${BLUE}║${NC}"
+    echo -e "${BLUE}║${NC}  ${DIM}CoreConduit Consulting Services${NC}              ${BLUE}║${NC}"
+    echo -e "${BLUE}╚══════════════════════════════════════════════╝${NC}"
+}
+
+# ── Logging ─────────────────────────────────────────────────────────────────
+log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$PISYNC_LOG"; }
+info()  { echo -e "  ${GREEN}✓${NC} $*"; log "INFO: $*"; }
+warn()  { echo -e "  ${YELLOW}⚠${NC} $*"; log "WARN: $*"; }
+error() { echo -e "  ${RED}✗${NC} $*"; log "ERROR: $*"; }
+step()  { echo -e "  ${BLUE}→${NC} $*"; log "STEP: $*"; }
+
+# ── Init ────────────────────────────────────────────────────────────────────
+init_dirs() {
+    mkdir -p "$PISYNC_HOME" "$PISYNC_STATE"
+    touch "$PISYNC_LOG"
+}
+
+# ── Lock Management ────────────────────────────────────────────────────────
+acquire_lock() {
+    if [ -f "$PISYNC_LOCK" ]; then
+        local pid
+        pid=$(cat "$PISYNC_LOCK" 2>/dev/null || echo "")
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            error "Another pisync process is running (PID $pid)"
+            return 1
+        fi
+        warn "Stale lock file found, removing"
+        rm -f "$PISYNC_LOCK"
+    fi
+    echo $$ > "$PISYNC_LOCK"
+}
+
+release_lock() {
+    rm -f "$PISYNC_LOCK"
+}
+
+# ── Configuration ──────────────────────────────────────────────────────────
+load_config() {
+    if [ ! -f "$PISYNC_CONF" ]; then
+        error "No configuration found. Run: pisync init"
+        exit 1
+    fi
+    # shellcheck source=/dev/null
+    source "$PISYNC_CONF"
+}
+
+get_projects() {
+    # Returns project definitions from config
+    # Format: name|local_path|remote_path|exclude_file
+    grep '^PROJECT_' "$PISYNC_CONF" 2>/dev/null | while IFS='=' read -r key value; do
+        echo "${value//\"/}"
+    done
+}
+
+get_nodes() {
+    grep '^NODE_' "$PISYNC_CONF" 2>/dev/null | while IFS='=' read -r key value; do
+        echo "${value//\"/}"
+    done
+}
+
+# ── Node Discovery ─────────────────────────────────────────────────────────
+discover_nodes() {
+    echo ""
+    step "Scanning LAN for PiSync nodes..."
+
+    local found=0
+    local cache_tmp
+    cache_tmp=$(mktemp)
+
+    # Method 1: Avahi/mDNS (preferred)
+    if command -v avahi-browse &>/dev/null; then
+        step "Using Avahi/mDNS discovery..."
+        avahi-browse -t -r _pisync._tcp 2>/dev/null | while read -r line; do
+            if echo "$line" | grep -q "hostname"; then
+                local host
+                host=$(echo "$line" | awk '{print $NF}' | sed 's/\[//;s/\]//')
+                echo "$host" >> "$cache_tmp"
+                ((found++)) || true
+            fi
+        done
+    fi
+
+    # Method 2: Scan known subnet with SSH check
+    if [ "$found" -eq 0 ]; then
+        step "Falling back to subnet scan..."
+        local my_ip my_subnet
+        my_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+        my_subnet=$(echo "$my_ip" | cut -d. -f1-3)
+
+        if [ -n "$my_subnet" ]; then
+            for i in $(seq 1 254); do
+                local target="${my_subnet}.${i}"
+                [ "$target" = "$my_ip" ] && continue
+
+                if timeout 1 bash -c "echo >/dev/tcp/$target/22" 2>/dev/null; then
+                    # Check if pisync is installed on remote
+                    local remote_hostname
+                    remote_hostname=$(ssh -o ConnectTimeout=2 -o StrictHostKeyChecking=no \
+                        -o BatchMode=yes "$SYNC_USER@$target" \
+                        "hostname 2>/dev/null" 2>/dev/null) || continue
+
+                    local has_pisync
+                    has_pisync=$(ssh -o ConnectTimeout=2 -o BatchMode=yes \
+                        "$SYNC_USER@$target" \
+                        "[ -f ~/.pisync/pisync.conf ] && echo yes || echo no" 2>/dev/null) || continue
+
+                    if [ "$has_pisync" = "yes" ]; then
+                        echo "${remote_hostname}|${target}|${SYNC_USER}" >> "$cache_tmp"
+                        info "Found: ${remote_hostname} (${target})"
+                        ((found++)) || true
+                    fi
+                fi
+            done &
+
+            # Show spinner while scanning
+            local scan_pid=$!
+            local spin='-\|/'
+            local sc=0
+            while kill -0 $scan_pid 2>/dev/null; do
+                sc=$(( (sc+1) %4 ))
+                printf "\r  ${BLUE}→${NC} Scanning... ${spin:$sc:1}"
+                sleep 0.2
+            done
+            printf "\r                          \r"
+            wait $scan_pid 2>/dev/null || true
+        fi
+    fi
+
+    # Method 3: Check configured nodes
+    if [ -f "$PISYNC_CONF" ]; then
+        step "Checking configured nodes..."
+        get_nodes | while IFS='|' read -r name host user port; do
+            [ -z "$host" ] && continue
+            local p="${port:-22}"
+            if timeout 2 bash -c "echo >/dev/tcp/$host/$p" 2>/dev/null; then
+                info "Online: ${name} (${host})"
+            else
+                warn "Offline: ${name} (${host})"
+            fi
+        done
+    fi
+
+    if [ -s "$cache_tmp" ]; then
+        cp "$cache_tmp" "$PISYNC_NODES_CACHE"
+        info "Found $(wc -l < "$cache_tmp") node(s)"
+    else
+        warn "No PiSync nodes discovered on LAN"
+    fi
+    rm -f "$cache_tmp"
+}
+
+# ── SSH Key Setup ──────────────────────────────────────────────────────────
+setup_keys() {
+    local target_host="$1"
+    local target_user="${2:-$SYNC_USER}"
+
+    step "Setting up SSH keys for ${target_user}@${target_host}..."
+
+    if [ ! -f "$HOME/.ssh/id_ed25519" ]; then
+        step "Generating Ed25519 key pair..."
+        ssh-keygen -t ed25519 -f "$HOME/.ssh/id_ed25519" -N "" -C "pisync@$(hostname)"
+    fi
+
+    ssh-copy-id -o StrictHostKeyChecking=no "${target_user}@${target_host}" 2>/dev/null
+    info "SSH key deployed to ${target_host}"
+}
+
+# ── Sync Engine ────────────────────────────────────────────────────────────
+build_rsync_args() {
+    local project_name="$1"
+    local exclude_file="$2"
+
+    local args=(
+        -azP                          # archive, compress, partial, progress
+        --delete                      # remove files not in source
+        --checksum                    # use checksums, not timestamps
+        --timeout=30                  # connection timeout
+        --stats                       # show transfer stats
+        --human-readable              # human readable sizes
+        --itemize-changes             # show what changed
+    )
+
+    # Project-specific excludes
+    if [ -n "$exclude_file" ] && [ -f "$exclude_file" ]; then
+        args+=(--exclude-from="$exclude_file")
+    fi
+
+    # Default excludes
+    args+=(
+        --exclude='.git/objects'
+        --exclude='__pycache__'
+        --exclude='*.pyc'
+        --exclude='node_modules'
+        --exclude='.DS_Store'
+        --exclude='*.swp'
+        --exclude='*.swo'
+        --exclude='.pisync-local'
+    )
+
+    echo "${args[@]}"
+}
+
+sync_project_to_node() {
+    local project_name="$1"
+    local local_path="$2"
+    local remote_path="$3"
+    local exclude_file="$4"
+    local node_host="$5"
+    local node_user="$6"
+    local node_port="${7:-22}"
+    local direction="${8:-push}"
+
+    local state_file="$PISYNC_STATE/${project_name}_${node_host}.last"
+
+    if [ ! -d "$local_path" ]; then
+        error "Local path does not exist: $local_path"
+        return 1
+    fi
+
+    local rsync_args
+    rsync_args=$(build_rsync_args "$project_name" "$exclude_file")
+
+    local src dst
+    if [ "$direction" = "push" ]; then
+        src="${local_path}/"
+        dst="${node_user}@${node_host}:${remote_path}/"
+    else
+        src="${node_user}@${node_host}:${remote_path}/"
+        dst="${local_path}/"
+    fi
+
+    step "Syncing ${project_name} (${direction}) → ${node_host}..."
+
+    # Dry run first if configured
+    if [ "${DRY_RUN:-false}" = "true" ]; then
+        info "DRY RUN — no changes will be made"
+        # shellcheck disable=SC2086
+        rsync -e "ssh -p $node_port -o ConnectTimeout=10 -o BatchMode=yes" \
+            $rsync_args --dry-run "$src" "$dst" 2>&1 | tee -a "$PISYNC_LOG"
+        return 0
+    fi
+
+    local start_time
+    start_time=$(date +%s)
+
+    # shellcheck disable=SC2086
+    if rsync -e "ssh -p $node_port -o ConnectTimeout=10 -o BatchMode=yes" \
+        $rsync_args "$src" "$dst" 2>&1 | tee -a "$PISYNC_LOG"; then
+
+        local end_time duration
+        end_time=$(date +%s)
+        duration=$((end_time - start_time))
+
+        echo "$(date -Iseconds)|${direction}|${duration}s|success" > "$state_file"
+        info "Synced ${project_name} to ${node_host} in ${duration}s"
+    else
+        echo "$(date -Iseconds)|${direction}|0|failed" > "$state_file"
+        error "Sync failed for ${project_name} → ${node_host}"
+        return 1
+    fi
+}
+
+# ── Conflict Detection ─────────────────────────────────────────────────────
+check_conflicts() {
+    local project_name="$1"
+    local local_path="$2"
+    local remote_path="$3"
+    local node_host="$4"
+    local node_user="$5"
+    local node_port="${6:-22}"
+
+    step "Checking for conflicts in ${project_name}..."
+
+    # Get local file hashes
+    local local_manifest
+    local_manifest=$(mktemp)
+    find "$local_path" -type f -not -path '*/.git/objects/*' \
+        -not -path '*/node_modules/*' -not -path '*/__pycache__/*' \
+        -exec md5sum {} \; 2>/dev/null | sort > "$local_manifest"
+
+    # Get remote file hashes
+    local remote_manifest
+    remote_manifest=$(mktemp)
+    ssh -p "$node_port" -o BatchMode=yes "${node_user}@${node_host}" \
+        "find '${remote_path}' -type f -not -path '*/.git/objects/*' \
+        -not -path '*/node_modules/*' -not -path '*/__pycache__/*' \
+        -exec md5sum {} \;" 2>/dev/null | sort > "$remote_manifest"
+
+    # Compare
+    local conflicts
+    conflicts=$(diff "$local_manifest" "$remote_manifest" 2>/dev/null | grep '^[<>]' | wc -l)
+
+    if [ "$conflicts" -gt 0 ]; then
+        warn "${conflicts} file(s) differ between local and ${node_host}"
+        diff "$local_manifest" "$remote_manifest" 2>/dev/null | head -20
+    else
+        info "No conflicts detected"
+    fi
+
+    rm -f "$local_manifest" "$remote_manifest"
+}
+
+# ── Watch Mode (inotify) ──────────────────────────────────────────────────
+watch_and_sync() {
+    local project_name="$1"
+    local local_path="$2"
+
+    if ! command -v inotifywait &>/dev/null; then
+        error "inotify-tools required. Install: sudo apt install inotify-tools"
+        return 1
+    fi
+
+    info "Watching ${local_path} for changes..."
+    info "Press Ctrl+C to stop"
+
+    local debounce_pid=""
+
+    inotifywait -m -r -e modify,create,delete,move \
+        --exclude '(\.git/objects|node_modules|__pycache__|\.swp)' \
+        "$local_path" 2>/dev/null | while read -r directory event filename; do
+
+        # Debounce: wait 2s after last change before syncing
+        if [ -n "$debounce_pid" ] && kill -0 "$debounce_pid" 2>/dev/null; then
+            kill "$debounce_pid" 2>/dev/null || true
+        fi
+
+        (
+            sleep 2
+            log "Change detected: ${event} ${directory}${filename}"
+            sync_project "$project_name"
+        ) &
+        debounce_pid=$!
+    done
+}
+
+# ── Orchestration ──────────────────────────────────────────────────────────
+sync_project() {
+    local target_project="$1"
+    local direction="${2:-push}"
+    local target_node="${3:-all}"
+
+    load_config
+
+    local synced=0
+    get_projects | while IFS='|' read -r name local_path remote_path exclude_file; do
+        [ -z "$name" ] && continue
+        [ "$target_project" != "all" ] && [ "$target_project" != "$name" ] && continue
+
+        get_nodes | while IFS='|' read -r node_name node_host node_user node_port; do
+            [ -z "$node_host" ] && continue
+            [ "$target_node" != "all" ] && [ "$target_node" != "$node_name" ] && continue
+
+            sync_project_to_node "$name" "$local_path" "$remote_path" \
+                "$exclude_file" "$node_host" "${node_user:-$SYNC_USER}" \
+                "${node_port:-22}" "$direction"
+            ((synced++)) || true
+        done
+    done
+
+    if [ "$synced" -eq 0 ]; then
+        warn "No matching project/node combination found"
+    fi
+}
+
+# ── Status ─────────────────────────────────────────────────────────────────
+show_status() {
+    load_config
+    echo ""
+    echo -e "  ${BOLD}Node Status${NC}"
+    echo -e "  ${DIM}─────────────────────────────────────────${NC}"
+
+    get_nodes | while IFS='|' read -r name host user port; do
+        [ -z "$host" ] && continue
+        local p="${port:-22}"
+        if timeout 2 bash -c "echo >/dev/tcp/$host/$p" 2>/dev/null; then
+            local uptime_str
+            uptime_str=$(ssh -p "$p" -o ConnectTimeout=2 -o BatchMode=yes \
+                "${user:-$SYNC_USER}@${host}" "uptime -p" 2>/dev/null) || uptime_str="unknown"
+            echo -e "  ${GREEN}●${NC} ${BOLD}${name}${NC} (${host}) — ${DIM}${uptime_str}${NC}"
+        else
+            echo -e "  ${RED}●${NC} ${BOLD}${name}${NC} (${host}) — ${DIM}offline${NC}"
+        fi
+    done
+
+    echo ""
+    echo -e "  ${BOLD}Last Sync Status${NC}"
+    echo -e "  ${DIM}─────────────────────────────────────────${NC}"
+
+    if [ -d "$PISYNC_STATE" ] && [ "$(ls -A "$PISYNC_STATE" 2>/dev/null)" ]; then
+        for state_file in "$PISYNC_STATE"/*.last; do
+            [ -f "$state_file" ] || continue
+            local basename
+            basename=$(basename "$state_file" .last)
+            local content
+            content=$(cat "$state_file")
+            local ts dir dur result
+            IFS='|' read -r ts dir dur result <<< "$content"
+            local icon
+            [ "$result" = "success" ] && icon="${GREEN}✓${NC}" || icon="${RED}✗${NC}"
+            echo -e "  ${icon} ${basename}: ${dir} ${dur} (${ts})"
+        done
+    else
+        echo -e "  ${DIM}No sync history yet${NC}"
+    fi
+    echo ""
+}
+
+# ── Init Command ───────────────────────────────────────────────────────────
+cmd_init() {
+    banner
+    echo ""
+    step "Initializing PiSync..."
+
+    init_dirs
+
+    if [ -f "$PISYNC_CONF" ]; then
+        warn "Configuration already exists at $PISYNC_CONF"
+        read -rp "  Overwrite? (y/N): " confirm
+        [ "$confirm" != "y" ] && [ "$confirm" != "Y" ] && return 0
+    fi
+
+    # Detect hostname and IP
+    local my_hostname my_ip
+    my_hostname=$(hostname)
+    my_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+
+    cat > "$PISYNC_CONF" << CONF
+# ============================================================================
+# PiSync Configuration — ${my_hostname}
+# Generated: $(date -Iseconds)
+# ============================================================================
+
+# ── Identity ────────────────────────────────────────────────────────────────
+NODE_NAME="${my_hostname}"
+SYNC_USER="${USER}"
+
+# ── Sync Settings ───────────────────────────────────────────────────────────
+# Direction: push | pull | bidirectional
+DEFAULT_DIRECTION="push"
+# How often the daemon checks (seconds)
+DAEMON_INTERVAL=300
+# Sync on file change (requires inotify-tools)
+WATCH_MODE=false
+# Show what would sync without doing it
+DRY_RUN=false
+# Resolve conflicts by: newest | source | manual
+CONFLICT_STRATEGY="newest"
+
+# ── Projects ────────────────────────────────────────────────────────────────
+# Format: name|local_path|remote_path|exclude_file
+# exclude_file is optional — leave empty or point to a file with rsync patterns
+#
+# Example: Claude Code harness
+PROJECT_01="claude-harness|${HOME}/.claude|${HOME}/.claude|${PISYNC_HOME}/excludes/claude-harness.exclude"
+#
+# Example: hydroMazing project
+# PROJECT_02="hydromazing|${HOME}/projects/hydromazing|${HOME}/projects/hydromazing|"
+#
+# Example: NEXUS platform
+# PROJECT_03="nexus|${HOME}/projects/nexus|${HOME}/projects/nexus|"
+
+# ── Nodes ───────────────────────────────────────────────────────────────────
+# Format: name|host|user|port
+# NODE_01="pi-workshop|192.168.1.101|${USER}|22"
+# NODE_02="pi-garden|192.168.1.102|${USER}|22"
+# NODE_03="pi-nexus|192.168.1.103|${USER}|22"
+CONF
+
+    # Create default exclude file for .claude
+    mkdir -p "$PISYNC_HOME/excludes"
+    cat > "$PISYNC_HOME/excludes/claude-harness.exclude" << 'EXCLUDE'
+# PiSync exclude patterns for .claude harness
+# Lines starting with # are comments
+
+# Runtime state (node-specific)
+*.pid
+*.sock
+*.lock
+
+# Logs (regenerated locally)
+logs/
+*.log
+
+# Temp files
+tmp/
+.tmp/
+*.tmp
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Editor swap files
+*.swp
+*.swo
+*~
+
+# Local-only overrides (create this file for per-node config)
+.pisync-local
+local.conf
+EXCLUDE
+
+    info "Configuration written to $PISYNC_CONF"
+    info "Default excludes written for claude-harness"
+    echo ""
+    echo -e "  ${BOLD}Next steps:${NC}"
+    echo -e "  1. Edit ${CYAN}${PISYNC_CONF}${NC} — uncomment/add nodes and projects"
+    echo -e "  2. Run ${CYAN}pisync add-node <hostname> <ip>${NC} to register peers"
+    echo -e "  3. Run ${CYAN}pisync keys <host>${NC} to deploy SSH keys"
+    echo -e "  4. Run ${CYAN}pisync sync${NC} to do your first sync"
+    echo ""
+}
+
+# ── Add Node ───────────────────────────────────────────────────────────────
+cmd_add_node() {
+    local name="$1"
+    local host="$2"
+    local user="${3:-$USER}"
+    local port="${4:-22}"
+
+    load_config
+
+    # Find next NODE_ number
+    local next_num
+    next_num=$(grep -c '^NODE_' "$PISYNC_CONF" 2>/dev/null || echo 0)
+    next_num=$((next_num + 1))
+    local padded
+    padded=$(printf "%02d" "$next_num")
+
+    echo "NODE_${padded}=\"${name}|${host}|${user}|${port}\"" >> "$PISYNC_CONF"
+    info "Added node: ${name} (${host})"
+
+    read -rp "  Deploy SSH keys now? (Y/n): " deploy
+    if [ "$deploy" != "n" ] && [ "$deploy" != "N" ]; then
+        setup_keys "$host" "$user"
+    fi
+}
+
+# ── Add Project ────────────────────────────────────────────────────────────
+cmd_add_project() {
+    local name="$1"
+    local local_path="$2"
+    local remote_path="${3:-$2}"
+    local exclude_file="${4:-}"
+
+    load_config
+
+    local next_num
+    next_num=$(grep -c '^PROJECT_' "$PISYNC_CONF" 2>/dev/null || echo 0)
+    next_num=$((next_num + 1))
+    local padded
+    padded=$(printf "%02d" "$next_num")
+
+    echo "PROJECT_${padded}=\"${name}|${local_path}|${remote_path}|${exclude_file}\"" >> "$PISYNC_CONF"
+    info "Added project: ${name} (${local_path})"
+}
+
+# ── Service Install ───────────────────────────────────────────────────────
+cmd_install_service() {
+    local script_path
+    script_path=$(readlink -f "$0")
+
+    step "Installing PiSync systemd service..."
+
+    sudo tee /etc/systemd/system/pisync.service > /dev/null << UNIT
+[Unit]
+Description=PiSync LAN Project Synchronization Daemon
+After=network-online.target avahi-daemon.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=${USER}
+ExecStart=${script_path} daemon
+Restart=on-failure
+RestartSec=30
+Environment=PISYNC_HOME=${PISYNC_HOME}
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+    # Avahi service for mDNS discovery
+    if command -v avahi-daemon &>/dev/null; then
+        sudo tee /etc/avahi/services/pisync.service > /dev/null << AVAHI
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<service-group>
+  <name replace-wildcards="yes">PiSync on %h</name>
+  <service>
+    <type>_pisync._tcp</type>
+    <port>22</port>
+    <txt-record>version=${PISYNC_VERSION}</txt-record>
+    <txt-record>user=${USER}</txt-record>
+  </service>
+</service-group>
+AVAHI
+        sudo systemctl restart avahi-daemon 2>/dev/null || true
+        info "Avahi mDNS service registered"
+    fi
+
+    sudo systemctl daemon-reload
+    sudo systemctl enable pisync.service
+    sudo systemctl start pisync.service
+    info "PiSync daemon installed and started"
+}
+
+# ── Daemon Mode ────────────────────────────────────────────────────────────
+cmd_daemon() {
+    load_config
+    log "PiSync daemon started (interval: ${DAEMON_INTERVAL}s)"
+
+    trap 'release_lock; exit 0' SIGTERM SIGINT
+
+    while true; do
+        acquire_lock || { sleep 60; continue; }
+
+        log "Daemon tick — syncing all projects"
+        sync_project "all" "${DEFAULT_DIRECTION:-push}" "all" 2>&1 | \
+            while read -r line; do log "DAEMON: $line"; done
+
+        release_lock
+        sleep "${DAEMON_INTERVAL:-300}"
+    done
+}
+
+# ── Log Viewer ─────────────────────────────────────────────────────────────
+cmd_log() {
+    local lines="${1:-50}"
+    if [ -f "$PISYNC_LOG" ]; then
+        tail -n "$lines" "$PISYNC_LOG"
+    else
+        warn "No log file found"
+    fi
+}
+
+# ── Usage ──────────────────────────────────────────────────────────────────
+usage() {
+    banner
+    echo ""
+    echo -e "  ${BOLD}Usage:${NC} pisync <command> [options]"
+    echo ""
+    echo -e "  ${BOLD}Setup${NC}"
+    echo -e "    init                        Initialize PiSync on this node"
+    echo -e "    add-node <name> <host>      Register a LAN peer"
+    echo -e "    add-project <name> <path>   Register a project to sync"
+    echo -e "    keys <host> [user]          Deploy SSH keys to a node"
+    echo -e "    install-service             Install systemd daemon"
+    echo ""
+    echo -e "  ${BOLD}Sync${NC}"
+    echo -e "    sync [project] [node]       Sync now (default: all)"
+    echo -e "    pull [project] [node]       Pull from remote"
+    echo -e "    push [project] [node]       Push to remote"
+    echo -e "    watch <project>             Watch and auto-sync on change"
+    echo -e "    dry-run [project] [node]    Preview what would sync"
+    echo ""
+    echo -e "  ${BOLD}Status${NC}"
+    echo -e "    status                      Show node and sync status"
+    echo -e "    discover                    Scan LAN for PiSync nodes"
+    echo -e "    conflicts <project> <node>  Check for conflicts"
+    echo -e "    log [lines]                 View sync log"
+    echo ""
+    echo -e "  ${BOLD}Options${NC}"
+    echo -e "    --version                   Show version"
+    echo -e "    --help                      Show this help"
+    echo ""
+}
+
+# ── Main ───────────────────────────────────────────────────────────────────
+main() {
+    init_dirs
+
+    case "${1:-}" in
+        init)
+            cmd_init
+            ;;
+        add-node)
+            [ -z "${2:-}" ] || [ -z "${3:-}" ] && { error "Usage: pisync add-node <name> <host> [user] [port]"; exit 1; }
+            cmd_add_node "$2" "$3" "${4:-}" "${5:-}"
+            ;;
+        add-project)
+            [ -z "${2:-}" ] || [ -z "${3:-}" ] && { error "Usage: pisync add-project <name> <path> [remote_path] [exclude_file]"; exit 1; }
+            cmd_add_project "$2" "$3" "${4:-}" "${5:-}"
+            ;;
+        keys)
+            [ -z "${2:-}" ] && { error "Usage: pisync keys <host> [user]"; exit 1; }
+            load_config
+            setup_keys "$2" "${3:-$SYNC_USER}"
+            ;;
+        install-service)
+            cmd_install_service
+            ;;
+        sync)
+            load_config
+            sync_project "${2:-all}" "${DEFAULT_DIRECTION:-push}" "${3:-all}"
+            ;;
+        push)
+            load_config
+            sync_project "${2:-all}" "push" "${3:-all}"
+            ;;
+        pull)
+            load_config
+            sync_project "${2:-all}" "pull" "${3:-all}"
+            ;;
+        watch)
+            [ -z "${2:-}" ] && { error "Usage: pisync watch <project>"; exit 1; }
+            load_config
+            local watch_path=""
+            get_projects | while IFS='|' read -r name lp rp ef; do
+                [ "$name" = "$2" ] && watch_path="$lp"
+            done
+            [ -z "$watch_path" ] && { error "Project not found: $2"; exit 1; }
+            watch_and_sync "$2" "$watch_path"
+            ;;
+        dry-run)
+            load_config
+            DRY_RUN=true sync_project "${2:-all}" "${DEFAULT_DIRECTION:-push}" "${3:-all}"
+            ;;
+        status)
+            banner
+            load_config
+            show_status
+            ;;
+        discover)
+            banner
+            discover_nodes
+            ;;
+        conflicts)
+            [ -z "${2:-}" ] || [ -z "${3:-}" ] && { error "Usage: pisync conflicts <project> <node>"; exit 1; }
+            load_config
+            # Resolve project and node details, then check
+            local found=false
+            get_projects | while IFS='|' read -r pname lp rp ef; do
+                [ "$pname" != "$2" ] && continue
+                get_nodes | while IFS='|' read -r nname nhost nuser nport; do
+                    [ "$nname" != "$3" ] && continue
+                    check_conflicts "$pname" "$lp" "$rp" "$nhost" "${nuser:-$SYNC_USER}" "${nport:-22}"
+                    found=true
+                done
+            done
+            ;;
+        log)
+            cmd_log "${2:-50}"
+            ;;
+        daemon)
+            cmd_daemon
+            ;;
+        --version|-v)
+            echo "PiSync v${PISYNC_VERSION}"
+            ;;
+        --help|-h|"")
+            usage
+            ;;
+        *)
+            error "Unknown command: $1"
+            usage
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
