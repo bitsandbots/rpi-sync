@@ -11,10 +11,22 @@ chmod +x install.sh
 sudo ./install.sh
 ```
 
+### Installer options
+
+```bash
+sudo ./install.sh                        # Install to /usr/local/bin (default)
+./install.sh --prefix ~/.local           # Install to ~/.local/bin (no sudo needed)
+./install.sh --check                     # Verify dependencies only, don't install
+sudo ./install.sh --uninstall            # Remove the pisync binary
+```
+
 The installer:
-1. Checks for `rsync`, `openssh-client/server`, `avahi-utils`, `inotify-tools` — installs any that are missing.
-2. Enables and starts `sshd` and `avahi-daemon` if not already running.
-3. Copies `pisync` to `/usr/local/bin/pisync` with executable permissions.
+1. Detects the installed version — shows upgrade message if updating.
+2. Checks `rsync`, `openssh-client/server` (required) and `avahi-utils`, `inotify-tools` (optional).
+3. Installs missing required packages via `apt`.
+4. Enables `sshd` and `avahi-daemon` if not already running.
+5. Copies `pisync` to `$INSTALL_DIR/pisync` and installs exclude templates to `/usr/local/share/pisync/excludes/`.
+6. Verifies the installed binary runs and prints its version.
 
 Verify:
 ```bash
@@ -222,3 +234,31 @@ pisync pull <project> <node>           # take remote as source of truth
 bash healthcheck.sh                    # full diagnostic
 journalctl -u pisync --no-pager -n 50  # systemd logs
 ```
+
+## Releasing
+
+Use `release.sh` to build a versioned distribution package.
+
+```bash
+# Preview what the release would do (no changes made)
+./release.sh 1.1.0 --dry-run
+
+# Create the release
+./release.sh 1.1.0
+```
+
+`release.sh` will:
+1. Validate semver format and that the new version is greater than current.
+2. Verify the git working tree is clean.
+3. Bump `PISYNC_VERSION` in the `pisync` script and verify syntax.
+4. Build `dist/pisync-v1.1.0.tar.gz` containing `pisync`, `install.sh`, `healthcheck.sh`, `README.md`, `LICENSE`, `templates/`, and `docs/`.
+5. Generate `dist/pisync-v1.1.0.tar.gz.sha256`.
+6. Commit the version bump and create an annotated git tag `v1.1.0`.
+
+After running:
+```bash
+git push && git push --tags
+# Attach dist/pisync-v1.1.0.tar.gz to the GitHub release for tag v1.1.0
+```
+
+The `dist/` directory is gitignored — release artifacts are not committed to the repo.

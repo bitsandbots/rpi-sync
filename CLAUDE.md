@@ -11,8 +11,11 @@ No build step. No test runner. No package manager. Development = edit `pisync`, 
 ## Commands
 
 ```bash
-# Install on a node (Debian/Ubuntu — installs rsync, openssh, avahi-utils, inotify-tools)
-sudo ./install.sh
+# Install on a node
+sudo ./install.sh                   # to /usr/local/bin
+./install.sh --prefix ~/.local      # to ~/.local/bin (no sudo)
+./install.sh --check                # verify deps only
+sudo ./install.sh --uninstall       # remove binary
 
 # Verify installation and connectivity
 bash healthcheck.sh
@@ -24,6 +27,10 @@ bash pisync <command>
 bash pisync --help
 bash pisync init
 bash pisync dry-run
+
+# Release a new version
+./release.sh 1.1.0 --dry-run       # preview
+./release.sh 1.1.0                  # bump, build dist/, tag
 ```
 
 ## Architecture
@@ -56,9 +63,11 @@ Default excludes hardcoded in `build_rsync_args()`: `.git/objects`, `__pycache__
 | File | Purpose |
 |---|---|
 | `pisync` | The entire tool — all subcommands, sync engine, discovery |
-| `install.sh` | Dependency install + copy `pisync` to `/usr/local/bin` |
+| `install.sh` | Installs binary + deps; supports `--prefix`, `--check`, `--uninstall` |
+| `release.sh` | Bumps version, builds `dist/pisync-vX.Y.Z.tar.gz`, creates git tag |
 | `healthcheck.sh` | Pre-flight checks: deps, config, node reachability, SSH auth, systemd service |
 | `templates/excludes/` | Rsync exclude templates for `claude-harness`, `hydromazing`, `nexus` |
+| `dist/` | Generated release tarballs — gitignored, produced by `release.sh` |
 
 ## Key conventions
 
@@ -66,7 +75,7 @@ Default excludes hardcoded in `build_rsync_args()`: `.git/objects`, `__pycache__
 - Lock must be acquired before any write operation; always `trap release_lock EXIT` in long-running commands.
 - SSH calls use `-o BatchMode=yes -o ConnectTimeout=N` — never prompt for passwords.
 - The `dry-run` subcommand sets `DRY_RUN=true` then calls `sync_project` — the flag is checked inside `sync_project_to_node()`.
-- `watch` subcommand resolves the local path by piping `get_projects` — the subshell means the `watch_path` variable set inside the pipe is not visible outside it (known bash subshell scoping issue).
+- All loops that consume `get_projects` / `get_nodes` must use process substitution `< <(get_projects)` not pipes — pipes run in a subshell and variable assignments are lost.
 
 ## Dependencies
 
