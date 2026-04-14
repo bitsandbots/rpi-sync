@@ -15,7 +15,6 @@ PISYNC_CONF="$PISYNC_HOME/pisync.conf"
 PISYNC_LOG="$PISYNC_HOME/pisync.log"
 PISYNC_LOCK="$PISYNC_HOME/pisync.lock"
 PISYNC_STATE="$PISYNC_HOME/state"
-PISYNC_NODES_CACHE="$PISYNC_HOME/nodes.cache"
 
 # ── Colors ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -176,7 +175,6 @@ discover_nodes() {
     fi
 
     if [ -s "$cache_tmp" ]; then
-        cp "$cache_tmp" "$PISYNC_NODES_CACHE"
         info "Found $(wc -l < "$cache_tmp") node(s)"
     else
         warn "No PiSync nodes discovered on LAN"
@@ -196,8 +194,13 @@ setup_keys() {
         ssh-keygen -t ed25519 -f "$HOME/.ssh/id_ed25519" -N "" -C "pisync@$(hostname)"
     fi
 
-    ssh-copy-id -o StrictHostKeyChecking=no "${target_user}@${target_host}" 2>/dev/null
-    info "SSH key deployed to ${target_host}"
+    # StrictHostKeyChecking=no accepts the host key on first contact (TOFU).
+    # Log the fingerprint so unexpected key changes are detectable in the log.
+    local fingerprint
+    fingerprint=$(ssh-keyscan -H "$target_host" 2>/dev/null | ssh-keygen -lf - 2>/dev/null | head -1 || echo "unavailable")
+    log "Host key fingerprint for ${target_host}: ${fingerprint}"
+    ssh-copy-id -o StrictHostKeyChecking=no "${target_user}@${target_host}"
+    info "SSH key deployed to ${target_host} (fingerprint logged)"
 }
 
 # ── Sync Engine ────────────────────────────────────────────────────────────
@@ -316,8 +319,10 @@ check_conflicts() {
     # Get remote file hashes
     local remote_manifest
     remote_manifest=$(mktemp)
+    local safe_remote_path
+    safe_remote_path=$(printf '%q' "$remote_path")
     ssh -p "$node_port" -o BatchMode=yes "${node_user}@${node_host}" \
-        "find '${remote_path}' -type f -not -path '*/.git/objects/*' \
+        "find ${safe_remote_path} -type f -not -path '*/.git/objects/*' \
         -not -path '*/node_modules/*' -not -path '*/__pycache__/*' \
         -exec md5sum {} \;" 2>/dev/null | sort > "$remote_manifest"
 
@@ -377,11 +382,11 @@ sync_project() {
     load_config
 
     local synced=0
-    get_projects | while IFS='|' read -r name local_path remote_path exclude_file; do
+    while IFS='|' read -r name local_path remote_path exclude_file; do
         [ -z "$name" ] && continue
         [ "$target_project" != "all" ] && [ "$target_project" != "$name" ] && continue
 
-        get_nodes | while IFS='|' read -r node_name node_host node_user node_port; do
+        while IFS='|' read -r node_name node_host node_user node_port; do
             [ -z "$node_host" ] && continue
             [ "$target_node" != "all" ] && [ "$target_node" != "$node_name" ] && continue
 
@@ -389,8 +394,8 @@ sync_project() {
                 "$exclude_file" "$node_host" "${node_user:-$SYNC_USER}" \
                 "${node_port:-22}" "$direction"
             ((synced++)) || true
-        done
-    done
+        done < <(get_nodes)
+    done < <(get_projects)
 
     if [ "$synced" -eq 0 ]; then
         warn "No matching project/node combination found"
@@ -546,12 +551,27 @@ EXCLUDE
     echo ""
 }
 
+# ── Input Validation ──────────────────────────────────────────────────────
+# Rejects values that could inject code when written to the sourced config file.
+validate_config_value() {
+    local label="$1" value="$2"
+    if [[ "$value" =~ ['$`();|&<>'] ]]; then
+        error "Invalid characters in ${label}: ${value}"
+        exit 1
+    fi
+}
+
 # ── Add Node ───────────────────────────────────────────────────────────────
 cmd_add_node() {
     local name="$1"
     local host="$2"
     local user="${3:-$USER}"
     local port="${4:-22}"
+
+    validate_config_value "name" "$name"
+    validate_config_value "host" "$host"
+    validate_config_value "user" "$user"
+    validate_config_value "port" "$port"
 
     load_config
 
@@ -577,6 +597,10 @@ cmd_add_project() {
     local local_path="$2"
     local remote_path="${3:-$2}"
     local exclude_file="${4:-}"
+
+    validate_config_value "name" "$name"
+    validate_config_value "local_path" "$local_path"
+    validate_config_value "remote_path" "$remote_path"
 
     load_config
 
@@ -741,9 +765,9 @@ main() {
             [ -z "${2:-}" ] && { error "Usage: pisync watch <project>"; exit 1; }
             load_config
             local watch_path=""
-            get_projects | while IFS='|' read -r name lp rp ef; do
-                [ "$name" = "$2" ] && watch_path="$lp"
-            done
+            while IFS='|' read -r name lp rp ef; do
+                [ "$name" = "$2" ] && { watch_path="$lp"; break; }
+            done < <(get_projects)
             [ -z "$watch_path" ] && { error "Project not found: $2"; exit 1; }
             watch_and_sync "$2" "$watch_path"
             ;;
@@ -765,14 +789,15 @@ main() {
             load_config
             # Resolve project and node details, then check
             local found=false
-            get_projects | while IFS='|' read -r pname lp rp ef; do
+            while IFS='|' read -r pname lp rp ef; do
                 [ "$pname" != "$2" ] && continue
-                get_nodes | while IFS='|' read -r nname nhost nuser nport; do
+                while IFS='|' read -r nname nhost nuser nport; do
                     [ "$nname" != "$3" ] && continue
                     check_conflicts "$pname" "$lp" "$rp" "$nhost" "${nuser:-$SYNC_USER}" "${nport:-22}"
                     found=true
-                done
-            done
+                done < <(get_nodes)
+            done < <(get_projects)
+            "$found" || warn "No matching project/node combination: $2 / $3"
             ;;
         log)
             cmd_log "${2:-50}"
