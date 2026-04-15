@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PiSync is a single-file bash CLI (`pisync`) that synchronizes project directories across Raspberry Pi nodes over LAN using rsync/SSH with zero-config Avahi/mDNS discovery. MIT-licensed, cloud-independent, offline-first.
 
-No build step. No test runner. No package manager. Development = edit `pisync`, test manually.
+No build step. No package manager. Development = edit `pisync`, then run tests.
 
 ## Commands
 
@@ -44,6 +44,11 @@ bash pisync log [lines]             # tail ~/.pisync/pisync.log
 # Release a new version
 ./release.sh 1.1.0 --dry-run       # preview
 ./release.sh 1.1.0                  # bump, build dist/, tag
+
+# Run tests
+./tests/run_tests.sh                # run all tests
+./tests/run_tests.sh discovery      # run specific test file
+./tests/run_tests.sh --verbose      # TAP output
 ```
 
 ## Architecture
@@ -90,6 +95,7 @@ Default excludes hardcoded in `build_rsync_args()`: `.git/objects`, `__pycache__
 | `templates/excludes/` | Rsync exclude templates for `claude-harness`, `hydromazing`, `nexus` |
 | `docs/` | Architecture diagrams, CLI reference, internals — deep-dive context |
 | `dist/` | Generated release tarballs — gitignored, produced by `release.sh` |
+| `tests/` | Bats-core test suite — discovery, deploy, connection tests |
 
 ## Key conventions
 
@@ -104,3 +110,4 @@ Default excludes hardcoded in `build_rsync_args()`: `.git/objects`, `__pycache__
 
 Required: `rsync`, `openssh-client`, `openssh-server`
 Optional: `avahi-utils` (mDNS discovery), `inotify-tools` (watch mode)
+Dev: `bats` (test suite), `shellcheck` (linting)

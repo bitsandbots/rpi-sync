@@ -207,6 +207,32 @@ pisync sync dotfiles
 → Run `pisync conflicts <project> <node>` to see which files differ
 → Resolve manually, then `pisync push` or `pisync pull` to establish source of truth
 
+## Development
+
+### Running tests
+
+```bash
+# Install test framework
+sudo apt install bats shellcheck
+
+# Run all tests
+./tests/run_tests.sh
+
+# Run specific test file
+./tests/run_tests.sh discovery
+./tests/run_tests.sh deploy
+./tests/run_tests.sh connection
+
+# Verbose output
+./tests/run_tests.sh --verbose
+```
+
+The test suite covers:
+- Node discovery and config parsing
+- Deploy workflow and sync operations
+- SSH/rsync connection handling
+- Lock management and state files
+
 ## License
 
 MIT — CoreConduit Consulting Services
