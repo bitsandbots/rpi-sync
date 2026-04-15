@@ -140,6 +140,7 @@ check_dep ssh           openssh-client
 check_dep sshd          openssh-server
 check_dep avahi-browse  avahi-utils  optional
 check_dep inotifywait   inotify-tools optional
+# Note: sshpass intentionally NOT included - password auth uses native SSH via /dev/tty
 
 if [ "$CHECK_ONLY" = true ]; then
     echo ""
@@ -223,7 +224,7 @@ else
     echo -e "  ${BOLD}Quick start:${NC}"
     echo -e "    ${CYAN}pisync init${NC}                  Set up this node"
     echo -e "    ${CYAN}pisync add-node pi2 10.0.0.2${NC} Register a peer"
-    echo -e "    ${CYAN}pisync keys 10.0.0.2${NC}         Deploy SSH keys"
+    echo -e "    ${CYAN}./setup-ssh-keys.sh${NC}           Deploy SSH keys to all nodes"
     echo -e "    ${CYAN}pisync sync${NC}                  Sync all projects"
     echo -e "    ${CYAN}pisync install-service${NC}        Enable auto-sync daemon"
     echo ""

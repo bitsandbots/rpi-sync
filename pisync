@@ -97,6 +97,9 @@ discover_nodes() {
     echo ""
     step "Scanning LAN for PiSync nodes..."
 
+    # Ensure SYNC_USER has a default
+    SYNC_USER="${SYNC_USER:-$USER}"
+
     local found=0
     local cache_tmp
     cache_tmp=$(mktemp)
@@ -186,20 +189,28 @@ discover_nodes() {
 setup_keys() {
     local target_host="$1"
     local target_user="${2:-$SYNC_USER}"
+    local target_port="${3:-22}"
+    local ssh_key="$HOME/.ssh/id_ed25519"
 
-    step "Setting up SSH keys for ${target_user}@${target_host}..."
+    step "Setting up SSH keys for ${target_user}@${target_host}:${target_port}..."
 
-    if [ ! -f "$HOME/.ssh/id_ed25519" ]; then
+    if [ ! -f "${ssh_key}" ]; then
         step "Generating Ed25519 key pair..."
-        ssh-keygen -t ed25519 -f "$HOME/.ssh/id_ed25519" -N "" -C "pisync@$(hostname)"
+        ssh-keygen -t ed25519 -f "${ssh_key}" -N "" -C "pisync@$(hostname)"
     fi
 
-    # StrictHostKeyChecking=no accepts the host key on first contact (TOFU).
-    # Log the fingerprint so unexpected key changes are detectable in the log.
+    # Log host fingerprint for TOFU audit trail; StrictHostKeyChecking=no
+    # accepts on first contact only — subsequent mismatches will still error.
     local fingerprint
-    fingerprint=$(ssh-keyscan -H "$target_host" 2>/dev/null | ssh-keygen -lf - 2>/dev/null | head -1 || echo "unavailable")
+    fingerprint=$(ssh-keyscan -p "$target_port" -H "$target_host" 2>/dev/null \
+        | ssh-keygen -lf - 2>/dev/null | head -1 || echo "unavailable")
     log "Host key fingerprint for ${target_host}: ${fingerprint}"
-    ssh-copy-id -o StrictHostKeyChecking=no "${target_user}@${target_host}"
+
+    if ! ssh-copy-id -i "${ssh_key}.pub" -p "$target_port" \
+            -o StrictHostKeyChecking=no "${target_user}@${target_host}"; then
+        error "Failed to copy SSH key to ${target_host}:${target_port} — check password and SSH server"
+        return 1
+    fi
     info "SSH key deployed to ${target_host} (fingerprint logged)"
 }
 
@@ -587,7 +598,7 @@ cmd_add_node() {
 
     read -rp "  Deploy SSH keys now? (Y/n): " deploy
     if [ "$deploy" != "n" ] && [ "$deploy" != "N" ]; then
-        setup_keys "$host" "$user"
+        setup_keys "$host" "$user" "$port"
     fi
 }
 
@@ -826,7 +837,7 @@ usage() {
     echo -e "    init                        Initialize PiSync on this node"
     echo -e "    add-node <name> <host>      Register a LAN peer"
     echo -e "    add-project <name> <path>   Register a project to sync"
-    echo -e "    keys <host> [user]          Deploy SSH keys to a node"
+    echo -e "    keys <host> [user] [port]   Deploy SSH keys to a node"
     echo -e "    install-service             Install systemd daemon"
     echo ""
     echo -e "  ${BOLD}Sync${NC}"
@@ -866,9 +877,9 @@ main() {
             cmd_add_project "$2" "$3" "${4:-}" "${5:-}"
             ;;
         keys)
-            [ -z "${2:-}" ] && { error "Usage: pisync keys <host> [user]"; exit 1; }
+            [ -z "${2:-}" ] && { error "Usage: pisync keys <host> [user] [port]"; exit 1; }
             load_config
-            setup_keys "$2" "${3:-$SYNC_USER}"
+            setup_keys "$2" "${3:-$SYNC_USER}" "${4:-22}"
             ;;
         install-service)
             cmd_install_service
