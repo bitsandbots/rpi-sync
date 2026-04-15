@@ -57,6 +57,14 @@ pisync add-node pi-nexus    192.168.1.103
 
 Each `add-node` prompts to deploy SSH keys immediately.
 
+Alternatively, deploy SSH keys to all configured nodes at once:
+
+```bash
+./setup-ssh-keys.sh           # Interactive - prompts for password per node
+./setup-ssh-keys.sh --check    # Verify SSH access only
+./setup-ssh-keys.sh --node pi-workshop  # Setup specific node
+```
+
 ### 4. Sync
 
 ```bash
@@ -132,7 +140,7 @@ Create a `.pisync-local` file inside any project directory to mark node-specific
 | `pisync init` | Initialize PiSync on this node |
 | `pisync add-node <n> <host>` | Register a LAN peer |
 | `pisync add-project <n> <path>` | Register a project to sync |
-| `pisync keys <host>` | Deploy SSH keys to a node |
+| `pisync keys <host> [user] [port]` | Deploy SSH keys to a node |
 | `pisync sync [project] [node]` | Sync now |
 | `pisync push [project] [node]` | Push to remote |
 | `pisync pull [project] [node]` | Pull from remote |

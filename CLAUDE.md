@@ -41,6 +41,11 @@ bash pisync conflicts <project> <node>  # hash-based diff check
 bash pisync discover                # Avahi + subnet scan + configured nodes
 bash pisync log [lines]             # tail ~/.pisync/pisync.log
 
+# SSH key setup
+./setup-ssh-keys.sh                 # Deploy keys to all nodes (interactive)
+./setup-ssh-keys.sh --check         # Verify SSH access only
+bash pisync keys <host> [user] [port]  # Deploy keys to single node
+
 # Release a new version
 ./release.sh 1.1.0 --dry-run       # preview
 ./release.sh 1.1.0                  # bump, build dist/, tag
@@ -89,6 +94,7 @@ Default excludes hardcoded in `build_rsync_args()`: `.git/objects`, `__pycache__
 | File | Purpose |
 |---|---|
 | `pisync` | The entire tool — all subcommands, sync engine, discovery |
+| `setup-ssh-keys.sh` | Batch SSH key deployment to all configured nodes (interactive) |
 | `install.sh` | Installs binary + deps; supports `--prefix`, `--check`, `--uninstall` |
 | `release.sh` | Bumps version, builds `dist/pisync-vX.Y.Z.tar.gz`, creates git tag |
 | `healthcheck.sh` | Pre-flight checks: deps, config, node reachability, SSH auth, systemd service |
