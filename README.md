@@ -203,6 +203,19 @@ pisync sync dotfiles
 
 **"Permission denied" on sync**
 → Run `pisync keys <host>` to deploy SSH keys
+→ If keys are deployed but still failing, check if your SSH key has a **passphrase**:
+  ```bash
+  ssh -vvv -o BatchMode=yes user@host 'hostname' 2>&1 | grep passphrase
+  ```
+  If you see `read_passphrase: can't open /dev/tty`, your key is passphrase-protected.
+  PiSync requires a **passphrase-less key** for BatchMode SSH:
+  ```bash
+  # Create a dedicated pisync key
+  ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_pisync -N ""
+
+  # Re-run setup to deploy and configure
+  ./setup-ssh-keys.sh
+  ```
 
 **"No PiSync nodes discovered"**
 → Check Avahi: `avahi-browse -t -r _pisync._tcp`

@@ -31,6 +31,7 @@ SSH_KEY_PUB="${SSH_KEY}.pub"
 SPECIFIC_NODE=""
 CHECK_ONLY=false
 GENERATE_KEY=false
+SKIP_SSH_CONFIG=false
 
 # ── Parse arguments ───────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -47,11 +48,16 @@ while [[ $# -gt 0 ]]; do
             GENERATE_KEY=true
             shift
             ;;
+        --skip-config|-s)
+            SKIP_SSH_CONFIG=true
+            shift
+            ;;
         --help|-h)
-            echo "Usage: $0 [--check] [--node NAME] [--generate]"
+            echo "Usage: $0 [--check] [--node NAME] [--generate] [--skip-config]"
             echo "  --check       Verify SSH access to all nodes"
             echo "  --node NAME   Setup specific node only"
             echo "  --generate    Generate new SSH key if missing"
+            echo "  --skip-config Skip SSH config auto-configuration"
             exit 0
             ;;
         *)
@@ -179,6 +185,62 @@ if [ "$CHECK_ONLY" = true ]; then
     fi
 fi
 
+# ── Update SSH config for pisync nodes ──────────────────────────────────────
+update_ssh_config() {
+    local ssh_config="$HOME/.ssh/config"
+    local marker="# --- PiSync nodes (auto-generated) ---"
+    local hosts=""
+
+    # Build host list
+    for name in "${!NODES[@]}"; do
+        IFS='|' read -r user host port <<< "${NODES[$name]}"
+        hosts="$hosts $host"
+    done
+    hosts=$(echo "$hosts" | xargs)  # Trim leading space
+
+    if [ -z "$hosts" ]; then
+        return 0
+    fi
+
+    # Check if we need to update
+    if grep -q "$marker" "$ssh_config" 2>/dev/null; then
+        # Update existing block
+        local temp_file
+        temp_file=$(mktemp)
+        awk -v marker="$marker" -v hosts="$hosts" -v keyfile="$SSH_KEY" '
+            $0 ~ marker {
+                print marker
+                print "Host " hosts
+                print "    IdentityFile " keyfile
+                print "    IdentitiesOnly yes"
+                print "    BatchMode yes"
+                print "# --- End PiSync ---"
+                skip = 1
+                next
+            }
+            skip && /^# --- End PiSync/ { skip = 0; next }
+            skip { next }
+            { print }
+        ' "$ssh_config" > "$temp_file"
+        mv "$temp_file" "$ssh_config"
+        chmod 600 "$ssh_config"
+        echo -e "  ${GREEN}✓${NC} Updated SSH config for pisync nodes"
+    else
+        # Append new block
+        {
+            echo ""
+            echo "$marker"
+            echo "Host $hosts"
+            echo "    IdentityFile $SSH_KEY"
+            echo "    IdentitiesOnly yes"
+            echo "    BatchMode yes"
+            echo "# --- End PiSync ---"
+        } >> "$ssh_config"
+        chmod 600 "$ssh_config"
+        echo -e "  ${GREEN}✓${NC} Added SSH config for pisync nodes"
+    fi
+}
+
 # ── Check for interactive terminal ──────────────────────────────────────────
 if [ ! -t 0 ]; then
     echo -e "  ${RED}✗${NC} This script requires an interactive terminal for password input."
@@ -266,6 +328,13 @@ if [ $FAILED -gt 0 ]; then
     echo -e "    - SSH server is running on failed nodes"
     echo -e "    - Network connectivity to failed nodes"
     exit 1
+fi
+
+# ── Update SSH config ───────────────────────────────────────────────────────
+if [ "$SKIP_SSH_CONFIG" = false ] && [ $SUCCESS -gt 0 ]; then
+    echo ""
+    echo -e "  ${BLUE}→${NC} Configuring SSH config for BatchMode..."
+    update_ssh_config
 fi
 
 echo -e "  ${GREEN}✓${NC} All nodes configured for key-based SSH access"
