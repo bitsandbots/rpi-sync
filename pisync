@@ -946,4 +946,7 @@ main() {
     esac
 }
 
-main "$@"
+# Run main only if not being sourced for testing
+if [ "${PISYNC_TESTING:-}" != "1" ]; then
+    main "$@"
+fi
