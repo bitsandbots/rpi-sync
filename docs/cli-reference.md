@@ -116,6 +116,33 @@ pisync pull claude-harness pi-workshop
 
 ---
 
+### `pisync deploy [project]`
+
+Pushes to all configured nodes with a dry-run preview and confirmation prompt. Also syncs the node list to remotes so they can run pisync independently. Reports successes and failures at the end.
+
+```bash
+pisync deploy              # deploy all projects
+pisync deploy claude-harness  # deploy specific project
+```
+
+**Flow:**
+1. Shows dry-run preview of what would be synced
+2. Prompts for confirmation (y/N)
+3. Pushes projects to all configured nodes
+4. Syncs node list to each remote (preserving remote's identity)
+5. Reports successes and failures
+
+**What gets synced to remotes:**
+- Project files (via rsync)
+- `NODE_*` entries from config (so remotes know about all peers)
+
+**What stays local on remotes:**
+- `NODE_NAME` - remote's own hostname
+- `SYNC_USER` - remote's user
+- Other local settings
+
+---
+
 ### `pisync dry-run [project] [node]`
 
 Shows what rsync would transfer without making any changes. Sets `DRY_RUN=true` and calls `sync_project` — no files are modified.

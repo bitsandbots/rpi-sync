@@ -693,6 +693,129 @@ cmd_log() {
     fi
 }
 
+# ── Deploy Command ─────────────────────────────────────────────────────────
+sync_node_list_to_remote() {
+    local remote_host="$1"
+    local remote_user="$2"
+    local remote_port="${3:-22}"
+
+    step "Syncing node list to ${remote_host}..."
+
+    # Build node entries from local config
+    # grep returns 1 for no matches (ok), 2+ for real errors
+    local node_entries grep_status
+    node_entries=$(grep '^NODE_' "$PISYNC_CONF" 2>&1)
+    grep_status=$?
+    if [ $grep_status -gt 1 ]; then
+        error "Failed to read config: $node_entries"
+        return 1
+    fi
+
+    if [ -z "$node_entries" ]; then
+        warn "No NODE_ entries found in config"
+        return 0
+    fi
+
+    # Single SSH session: remove old entries, then append new ones
+    # Use pipefail to catch SSH failures (not just tee failures)
+    local ssh_output ssh_status
+    ssh_output=$(echo "$node_entries" | ssh -p "$remote_port" -o ConnectTimeout=10 -o BatchMode=yes \
+        "${remote_user}@${remote_host}" '
+        mkdir -p ~/.pisync
+        sed -i "/^NODE_/d" ~/.pisync/pisync.conf 2>/dev/null || true
+        cat >> ~/.pisync/pisync.conf
+    ' 2>&1)
+    ssh_status=$?
+
+    echo "$ssh_output" | tee -a "$PISYNC_LOG"
+
+    if [ $ssh_status -ne 0 ]; then
+        error "Failed to sync node list to ${remote_host}"
+        return 1
+    fi
+
+    info "Node list synced to ${remote_host}"
+}
+
+cmd_deploy() {
+    local target_project="${1:-all}"
+
+    load_config
+
+    acquire_lock || { error "Another pisync process is running"; return 1; }
+    trap release_lock EXIT
+
+    banner
+    echo ""
+
+    # ── Phase 1: Dry-run preview ──────────────────────────────────────────────
+    step "Phase 1: Dry-run preview..."
+    if ! DRY_RUN=true sync_project "$target_project" "push" "all"; then
+        error "Dry-run preview failed. Fix issues before deploying."
+        return 1
+    fi
+
+    echo ""
+    read -rp "  Proceed with deployment? (y/N): " confirm
+    case "$confirm" in
+        [yY]) ;;
+        *) warn "Deployment cancelled"; return 0 ;;
+    esac
+
+    # ── Phase 2: Deploy projects to all nodes ──────────────────────────────────
+    echo ""
+    step "Phase 2: Deploying projects to all nodes..."
+
+    local succeeded=0
+    local failed=0
+    local failures=""
+
+    while IFS='|' read -r name local_path remote_path exclude_file; do
+        [ -z "$name" ] && continue
+        [ "$target_project" != "all" ] && [ "$target_project" != "$name" ] && continue
+
+        while IFS='|' read -r node_name node_host node_user node_port; do
+            [ -z "$node_host" ] && continue
+
+            if sync_project_to_node "$name" "$local_path" "$remote_path" \
+                "$exclude_file" "$node_host" "${node_user:-$SYNC_USER}" \
+                "${node_port:-22}" "push"; then
+                ((succeeded++)) || true
+            else
+                ((failed++)) || true
+                failures="${failures}  ${name} → ${node_name}\n"
+            fi
+        done < <(get_nodes)
+    done < <(get_projects)
+
+    # ── Phase 3: Sync node list to remotes ─────────────────────────────────────
+    echo ""
+    step "Phase 3: Syncing node list to remotes..."
+    local nodes_synced=0
+    local nodes_failed=0
+
+    while IFS='|' read -r node_name node_host node_user node_port; do
+        [ -z "$node_host" ] && continue
+        if sync_node_list_to_remote "$node_host" "${node_user:-$SYNC_USER}" "${node_port:-22}"; then
+            ((nodes_synced++)) || true
+        else
+            ((nodes_failed++)) || true
+            failures="${failures}  node-list → ${node_name}\n"
+        fi
+    done < <(get_nodes)
+
+    # ── Phase 4: Report results ──────────────────────────────────────────────
+    echo ""
+    echo -e "  ${BOLD}Deployment Results${NC}"
+    echo -e "  ${DIM}─────────────────────────────────────────${NC}"
+    echo -e "  ${GREEN}✓${NC} Projects synced: ${succeeded}"
+    echo -e "  ${GREEN}✓${NC} Nodes configured: ${nodes_synced}"
+    if [ "$failed" -gt 0 ] || [ "$nodes_failed" -gt 0 ]; then
+        echo -e "  ${RED}✗${NC} Failed: ${failed} projects, ${nodes_failed} nodes"
+        echo -e "${failures}"
+    fi
+}
+
 # ── Usage ──────────────────────────────────────────────────────────────────
 usage() {
     banner
@@ -710,6 +833,7 @@ usage() {
     echo -e "    sync [project] [node]       Sync now (default: all)"
     echo -e "    pull [project] [node]       Pull from remote"
     echo -e "    push [project] [node]       Push to remote"
+    echo -e "    deploy [project]            Push to all nodes (with preview)"
     echo -e "    watch <project>             Watch and auto-sync on change"
     echo -e "    dry-run [project] [node]    Preview what would sync"
     echo ""
@@ -760,6 +884,9 @@ main() {
         pull)
             load_config
             sync_project "${2:-all}" "pull" "${3:-all}"
+            ;;
+        deploy)
+            cmd_deploy "${2:-all}"
             ;;
         watch)
             [ -z "${2:-}" ] && { error "Usage: pisync watch <project>"; exit 1; }

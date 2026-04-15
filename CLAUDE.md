@@ -26,7 +26,20 @@ bash pisync <command>
 # Common dev cycle: edit pisync, then test a subcommand
 bash pisync --help
 bash pisync init
-bash pisync dry-run
+bash pisync status                  # check node connectivity
+bash pisync dry-run                 # preview sync
+
+# Sync commands
+bash pisync sync [project] [node]   # sync per DEFAULT_DIRECTION
+bash pisync push [project] [node]   # force push (local→remote)
+bash pisync pull [project] [node]   # force pull (remote→local)
+bash pisync deploy [project]        # push to all nodes + sync node list
+bash pisync watch <project>         # inotify-based auto-sync (foreground)
+bash pisync conflicts <project> <node>  # hash-based diff check
+
+# Node discovery and diagnostics
+bash pisync discover                # Avahi + subnet scan + configured nodes
+bash pisync log [lines]             # tail ~/.pisync/pisync.log
 
 # Release a new version
 ./release.sh 1.1.0 --dry-run       # preview
@@ -54,9 +67,17 @@ PROJECT_01="name|local_path|remote_path|exclude_file"
 NODE_01="name|host|user|port"
 ```
 
+**State file format** (`~/.pisync/state/{project}_{host}.last`):
+```
+2026-04-14T10:30:00+00:00|push|4s|success
+```
+Fields: ISO timestamp | direction | duration | result
+
 **Rsync flags always included:** `-azP --delete --checksum --timeout=30 --stats --human-readable --itemize-changes`
 
 Default excludes hardcoded in `build_rsync_args()`: `.git/objects`, `__pycache__`, `*.pyc`, `node_modules`, `.DS_Store`, `*.swp/swo`, `.pisync-local`.
+
+**Conflict detection:** `check_conflicts()` runs `find … -type f -exec md5sum` locally and via SSH on remote, then compares hashes. Reports differing files without modifying anything.
 
 ## File map
 
@@ -67,12 +88,14 @@ Default excludes hardcoded in `build_rsync_args()`: `.git/objects`, `__pycache__
 | `release.sh` | Bumps version, builds `dist/pisync-vX.Y.Z.tar.gz`, creates git tag |
 | `healthcheck.sh` | Pre-flight checks: deps, config, node reachability, SSH auth, systemd service |
 | `templates/excludes/` | Rsync exclude templates for `claude-harness`, `hydromazing`, `nexus` |
+| `docs/` | Architecture diagrams, CLI reference, internals — deep-dive context |
 | `dist/` | Generated release tarballs — gitignored, produced by `release.sh` |
 
 ## Key conventions
 
 - All user-facing messages go through `info()` / `warn()` / `error()` / `step()` — each logs to `$PISYNC_LOG` AND prints with color.
 - Lock must be acquired before any write operation; always `trap release_lock EXIT` in long-running commands.
+- Daemon releases lock between interval sleeps — manual `pisync sync` can run during daemon sleep period.
 - SSH calls use `-o BatchMode=yes -o ConnectTimeout=N` — never prompt for passwords.
 - The `dry-run` subcommand sets `DRY_RUN=true` then calls `sync_project` — the flag is checked inside `sync_project_to_node()`.
 - All loops that consume `get_projects` / `get_nodes` must use process substitution `< <(get_projects)` not pipes — pipes run in a subshell and variable assignments are lost.

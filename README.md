@@ -136,6 +136,7 @@ Create a `.pisync-local` file inside any project directory to mark node-specific
 | `pisync sync [project] [node]` | Sync now |
 | `pisync push [project] [node]` | Push to remote |
 | `pisync pull [project] [node]` | Pull from remote |
+| `pisync deploy [project]` | Push to all nodes + sync node list |
 | `pisync watch <project>` | Watch and auto-sync on change |
 | `pisync dry-run [project] [node]` | Preview sync without changes |
 | `pisync status` | Show node and sync status |
