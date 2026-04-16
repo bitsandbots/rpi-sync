@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run pisync test suite
+# Run rpi-sync test suite
 # Usage: ./tests/run_tests.sh [--install-deps] [--verbose] [test_pattern]
 
 set -euo pipefail
@@ -59,7 +59,7 @@ run_tests() {
     cd "$PROJECT_DIR"
 
     echo ""
-    echo -e "${YELLOW}Running pisync tests...${NC}"
+    echo -e "${YELLOW}Running rpi-sync tests...${NC}"
     echo ""
 
     local test_files=()

@@ -1,24 +1,24 @@
-# PiSync — CLI Reference
+# rpi-sync — CLI Reference
 
-All commands follow the form: `pisync <command> [arguments]`
+All commands follow the form: `rpi-sync <command> [arguments]`
 
 ---
 
 ## Setup commands
 
-### `pisync init`
+### `rpi-sync init`
 
-Initializes PiSync on this node. Creates `~/.pisync/pisync.conf` and the default exclude file for the `.claude` harness. Prompts before overwriting an existing config.
+Initializes rpi-sync on this node. Creates `~/.rpi-sync/rpi-sync.conf` and the default exclude file for the `.claude` harness. Prompts before overwriting an existing config.
 
 ```bash
-pisync init
+rpi-sync init
 ```
 
 ---
 
-### `pisync add-node <name> <host> [user] [port]`
+### `rpi-sync add-node <name> <host> [user] [port]`
 
-Registers a peer node and appends a `NODE_NN` entry to `pisync.conf`. Prompts to deploy SSH keys immediately.
+Registers a peer node and appends a `NODE_NN` entry to `rpi-sync.conf`. Prompts to deploy SSH keys immediately.
 
 | Argument | Required | Default | Description |
 |----------|----------|---------|-------------|
@@ -30,15 +30,15 @@ Registers a peer node and appends a `NODE_NN` entry to `pisync.conf`. Prompts to
 All arguments are validated against shell metacharacters before being written to the config.
 
 ```bash
-pisync add-node pi-workshop 192.168.1.101
-pisync add-node pi-garden   192.168.1.102 cory 2222
+rpi-sync add-node pi-workshop 192.168.1.101
+rpi-sync add-node pi-garden   192.168.1.102 cory 2222
 ```
 
 ---
 
-### `pisync add-project <name> <path> [remote_path] [exclude_file]`
+### `rpi-sync add-project <name> <path> [remote_path] [exclude_file]`
 
-Registers a project to sync and appends a `PROJECT_NN` entry to `pisync.conf`.
+Registers a project to sync and appends a `PROJECT_NN` entry to `rpi-sync.conf`.
 
 | Argument | Required | Default | Description |
 |----------|----------|---------|-------------|
@@ -48,81 +48,81 @@ Registers a project to sync and appends a `PROJECT_NN` entry to `pisync.conf`.
 | `exclude_file` | No | `""` | Path to an rsync exclude pattern file |
 
 ```bash
-pisync add-project hydromazing /home/pi/projects/hydromazing
-pisync add-project nexus /home/pi/projects/nexus /home/pi/projects/nexus ~/.pisync/excludes/nexus.exclude
+rpi-sync add-project hydromazing /home/pi/projects/hydromazing
+rpi-sync add-project nexus /home/pi/projects/nexus /home/pi/projects/nexus ~/.rpi-sync/excludes/nexus.exclude
 ```
 
 ---
 
-### `pisync keys <host> [user]`
+### `rpi-sync keys <host> [user]`
 
 Generates an Ed25519 SSH key pair (if none exists) and deploys it to the target host via `ssh-copy-id`. Logs the host key fingerprint before connecting.
 
 ```bash
-pisync keys 192.168.1.101
-pisync keys 192.168.1.101 cory
+rpi-sync keys 192.168.1.101
+rpi-sync keys 192.168.1.101 cory
 ```
 
 ---
 
-### `pisync install-service`
+### `rpi-sync install-service`
 
-Installs and starts the PiSync systemd daemon. Writes:
-- `/etc/systemd/system/pisync.service`
-- `/etc/avahi/services/pisync.service` (if Avahi is installed)
+Installs and starts the rpi-sync systemd daemon. Writes:
+- `/etc/systemd/system/rpi-sync.service`
+- `/etc/avahi/services/rpi-sync.service` (if Avahi is installed)
 
 Requires `sudo` privileges (the script prompts via `sudo tee`).
 
 ```bash
-pisync install-service
+rpi-sync install-service
 ```
 
 ---
 
 ## Sync commands
 
-### `pisync sync [project] [node]`
+### `rpi-sync sync [project] [node]`
 
 Syncs in the direction set by `DEFAULT_DIRECTION` in config (default: `push`). Both arguments default to `all`.
 
 ```bash
-pisync sync                            # all projects → all nodes
-pisync sync claude-harness             # one project → all nodes
-pisync sync claude-harness pi-workshop # one project → one node
+rpi-sync sync                            # all projects → all nodes
+rpi-sync sync claude-harness             # one project → all nodes
+rpi-sync sync claude-harness pi-workshop # one project → one node
 ```
 
 ---
 
-### `pisync push [project] [node]`
+### `rpi-sync push [project] [node]`
 
 Force push regardless of `DEFAULT_DIRECTION`. Local is authoritative.
 
 ```bash
-pisync push
-pisync push hydromazing
-pisync push hydromazing pi-garden
+rpi-sync push
+rpi-sync push hydromazing
+rpi-sync push hydromazing pi-garden
 ```
 
 ---
 
-### `pisync pull [project] [node]`
+### `rpi-sync pull [project] [node]`
 
 Force pull regardless of `DEFAULT_DIRECTION`. Remote is authoritative.
 
 ```bash
-pisync pull
-pisync pull claude-harness pi-workshop
+rpi-sync pull
+rpi-sync pull claude-harness pi-workshop
 ```
 
 ---
 
-### `pisync deploy [project]`
+### `rpi-sync deploy [project]`
 
-Pushes to all configured nodes with a dry-run preview and confirmation prompt. Also syncs the node list to remotes so they can run pisync independently. Reports successes and failures at the end.
+Pushes to all configured nodes with a dry-run preview and confirmation prompt. Also syncs the node list to remotes so they can run rpi-sync independently. Reports successes and failures at the end.
 
 ```bash
-pisync deploy              # deploy all projects
-pisync deploy claude-harness  # deploy specific project
+rpi-sync deploy              # deploy all projects
+rpi-sync deploy claude-harness  # deploy specific project
 ```
 
 **Flow:**
@@ -143,37 +143,37 @@ pisync deploy claude-harness  # deploy specific project
 
 ---
 
-### `pisync dry-run [project] [node]`
+### `rpi-sync dry-run [project] [node]`
 
 Shows what rsync would transfer without making any changes. Sets `DRY_RUN=true` and calls `sync_project` — no files are modified.
 
 ```bash
-pisync dry-run
-pisync dry-run nexus pi-workshop
+rpi-sync dry-run
+rpi-sync dry-run nexus pi-workshop
 ```
 
 ---
 
-### `pisync watch <project>`
+### `rpi-sync watch <project>`
 
 Watches the project's local directory with `inotifywait` and triggers a sync 2 seconds after the last file change (debounced). Runs in the foreground; press `Ctrl+C` to stop.
 
 Requires `inotify-tools`.
 
 ```bash
-pisync watch claude-harness
+rpi-sync watch claude-harness
 ```
 
 ---
 
 ## Status commands
 
-### `pisync status`
+### `rpi-sync status`
 
 Shows connectivity status for all configured nodes (SSH reachable + uptime) and the last sync result for each project+node pair.
 
 ```bash
-pisync status
+rpi-sync status
 ```
 
 Example output:
@@ -190,47 +190,47 @@ Example output:
 
 ---
 
-### `pisync discover`
+### `rpi-sync discover`
 
-Scans the LAN for PiSync nodes using three methods in order:
+Scans the LAN for rpi-sync nodes using three methods in order:
 1. Avahi/mDNS (`_pisync._tcp`)
 2. TCP port-22 scan of the local `/24` subnet
 3. Connectivity check of all configured `NODE_*` entries
 
 ```bash
-pisync discover
+rpi-sync discover
 ```
 
 ---
 
-### `pisync conflicts <project> <node>`
+### `rpi-sync conflicts <project> <node>`
 
 Compares file hashes between the local project directory and the remote node using `md5sum`. Reports the number of differing files and shows the first 20 lines of the diff.
 
 ```bash
-pisync conflicts claude-harness pi-workshop
+rpi-sync conflicts claude-harness pi-workshop
 ```
 
 ---
 
-### `pisync log [lines]`
+### `rpi-sync log [lines]`
 
-Tails the PiSync log file. Defaults to 50 lines.
+Tails the rpi-sync log file. Defaults to 50 lines.
 
 ```bash
-pisync log
-pisync log 200
+rpi-sync log
+rpi-sync log 200
 ```
 
-Log location: `~/.pisync/pisync.log`
+Log location: `~/.rpi-sync/rpi-sync.log`
 
 ---
 
 ## Internal commands
 
-### `pisync daemon`
+### `rpi-sync daemon`
 
-Runs the sync loop used by the systemd service. Syncs all projects on the configured `DAEMON_INTERVAL`, with lock acquisition between cycles. Not typically invoked directly — use `pisync install-service` instead.
+Runs the sync loop used by the systemd service. Syncs all projects on the configured `DAEMON_INTERVAL`, with lock acquisition between cycles. Not typically invoked directly — use `rpi-sync install-service` instead.
 
 ---
 
@@ -269,5 +269,5 @@ node_modules
 .DS_Store
 *.swp
 *.swo
-.pisync-local
+.rpi-sync-local
 ```

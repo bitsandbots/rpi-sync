@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # ============================================================================
-# PiSync Installer
+# rpi-sync Installer
 # CoreConduit Consulting Services | MIT License
 # ============================================================================
-# Installs PiSync and all required dependencies on a Raspberry Pi (or any
+# Installs rpi-sync and all required dependencies on a Raspberry Pi (or any
 # Debian/Ubuntu system). Run on EACH node in your Pi network.
 #
 # Usage:
 #   sudo ./install.sh              Install to /usr/local/bin (default)
 #   ./install.sh --prefix ~/.local Install without sudo (user-local)
 #   ./install.sh --check           Verify dependencies only, don't install
-#   ./install.sh --uninstall       Remove PiSync binary
+#   ./install.sh --uninstall       Remove rpi-sync binary
 # ============================================================================
 
 set -euo pipefail
@@ -61,18 +61,18 @@ done
 
 # ── Banner ────────────────────────────────────────────────────────────────
 echo -e "${BLUE}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║${NC}  ${BOLD}Pi${ORANGE}Sync${NC} ${DIM}Installer${NC}                              ${BLUE}║${NC}"
+echo -e "${BLUE}║${NC}  ${BOLD}rpi${ORANGE}Sync${NC} ${DIM}Installer${NC}                              ${BLUE}║${NC}"
 echo -e "${BLUE}║${NC}  ${DIM}CoreConduit Consulting Services${NC}              ${BLUE}║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════╝${NC}"
 echo ""
 
 # ── Detect version in source ──────────────────────────────────────────────
-SRC_VERSION=$(grep '^PISYNC_VERSION=' "$PISYNC_SRC/pisync" | head -1 | cut -d'"' -f2)
+SRC_VERSION=$(grep '^RPI_SYNC_VERSION=' "$PISYNC_SRC/rpi-sync" | head -1 | cut -d'"' -f2)
 echo -e "  ${DIM}Source version: ${SRC_VERSION}${NC}"
 
 # ── Uninstall mode ────────────────────────────────────────────────────────
 if [ "$UNINSTALL" = true ]; then
-    TARGET="${INSTALL_DIR}/pisync"
+    TARGET="${INSTALL_DIR}/rpi-sync"
     if [ -f "$TARGET" ]; then
         if [ "$(id -u)" -eq 0 ] || [ -w "$INSTALL_DIR" ]; then
             rm -f "$TARGET"
@@ -81,10 +81,10 @@ if [ "$UNINSTALL" = true ]; then
         fi
         echo -e "  ${GREEN}✓${NC} Removed ${TARGET}"
     else
-        echo -e "  ${YELLOW}⚠${NC} pisync not found at ${TARGET}"
+        echo -e "  ${YELLOW}⚠${NC} rpi-sync not found at ${TARGET}"
     fi
-    echo -e "  ${DIM}Config and state in ~/.pisync/ were not removed.${NC}"
-    echo -e "  ${DIM}To fully remove: rm -rf ~/.pisync/${NC}"
+    echo -e "  ${DIM}Config and state in ~/.rpi-sync/ were not removed.${NC}"
+    echo -e "  ${DIM}To fully remove: rm -rf ~/.rpi-sync/${NC}"
     exit 0
 fi
 
@@ -110,10 +110,10 @@ run_privileged() {
 
 # ── Check for existing installation ──────────────────────────────────────
 EXISTING_VERSION=""
-if command -v pisync &>/dev/null; then
-    EXISTING_VERSION=$(pisync --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+if command -v rpi-sync &>/dev/null; then
+    EXISTING_VERSION=$(rpi-sync --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
     if [ -n "$EXISTING_VERSION" ]; then
-        echo -e "  ${YELLOW}⚠${NC} PiSync ${EXISTING_VERSION} already installed — upgrading to ${SRC_VERSION}"
+        echo -e "  ${YELLOW}⚠${NC} rpi-sync ${EXISTING_VERSION} already installed — upgrading to ${SRC_VERSION}"
     fi
 fi
 
@@ -179,18 +179,18 @@ if command -v avahi-daemon &>/dev/null && ! systemctl is-active --quiet avahi-da
     echo -e "  ${GREEN}✓${NC} Avahi mDNS enabled"
 fi
 
-# ── Install PiSync binary ─────────────────────────────────────────────────
+# ── Install rpi-sync binary ─────────────────────────────────────────────────
 echo ""
-echo -e "  ${BLUE}→${NC} Installing pisync → ${INSTALL_DIR}/pisync..."
+echo -e "  ${BLUE}→${NC} Installing rpi-sync → ${INSTALL_DIR}/rpi-sync..."
 
 # Create install dir if it doesn't exist (common for --prefix ~/.local/bin)
 if [ ! -d "$INSTALL_DIR" ]; then
     run_privileged mkdir -p "$INSTALL_DIR"
 fi
 
-run_privileged cp "$PISYNC_SRC/pisync" "$INSTALL_DIR/pisync"
-run_privileged chmod +x "$INSTALL_DIR/pisync"
-echo -e "  ${GREEN}✓${NC} pisync installed"
+run_privileged cp "$PISYNC_SRC/rpi-sync" "$INSTALL_DIR/rpi-sync"
+run_privileged chmod +x "$INSTALL_DIR/rpi-sync"
+echo -e "  ${GREEN}✓${NC} rpi-sync installed"
 
 # ── Install exclude templates ─────────────────────────────────────────────
 SHARE_DIR="/usr/local/share/pisync"
@@ -204,10 +204,10 @@ fi
 # ── Verify ────────────────────────────────────────────────────────────────
 echo ""
 INSTALLED_VERSION=""
-if INSTALLED_VERSION=$(pisync --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+'); then
-    echo -e "  ${GREEN}✓${NC} Verified: pisync ${INSTALLED_VERSION} at $(command -v pisync)"
+if INSTALLED_VERSION=$(rpi-sync --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+'); then
+    echo -e "  ${GREEN}✓${NC} Verified: rpi-sync ${INSTALLED_VERSION} at $(command -v rpi-sync)"
 else
-    echo -e "  ${YELLOW}⚠${NC} pisync not found in PATH. You may need to add ${INSTALL_DIR} to your PATH:"
+    echo -e "  ${YELLOW}⚠${NC} rpi-sync not found in PATH. You may need to add ${INSTALL_DIR} to your PATH:"
     echo -e "  ${DIM}    export PATH=\"${INSTALL_DIR}:\$PATH\"${NC}"
 fi
 

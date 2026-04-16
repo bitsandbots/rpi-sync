@@ -44,6 +44,6 @@ dist/
 *~
 
 # Node-local
-.pisync-local
+.rpi-sync-local
 local.conf
 .env.local

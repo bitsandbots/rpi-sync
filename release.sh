@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# PiSync Release Script
+# rpi-sync Release Script
 # CoreConduit Consulting Services | MIT License
 # ============================================================================
 # Bumps the version, builds a distributable tarball, and tags the release.
@@ -28,7 +28,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
-PISYNC_SCRIPT="$REPO_ROOT/pisync"
+RPI_SYNC_SCRIPT="$REPO_ROOT/rpi-sync"
 DIST_DIR="$REPO_ROOT/dist"
 DRY_RUN=false
 NEW_VERSION=""
@@ -40,7 +40,7 @@ step()  { echo -e "  ${BLUE}→${NC} $*"; }
 
 # ── Banner ────────────────────────────────────────────────────────────────
 echo ""
-echo -e "  ${BOLD}Pi${ORANGE}Sync${NC} ${BOLD}Release Builder${NC}"
+echo -e "  ${BOLD}rpi${ORANGE}Sync${NC} ${BOLD}Release Builder${NC}"
 echo -e "  ${DIM}CoreConduit Consulting Services${NC}"
 echo ""
 
@@ -59,7 +59,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --current)
-            CURRENT=$(grep '^PISYNC_VERSION=' "$PISYNC_SCRIPT" | head -1 | cut -d'"' -f2)
+            CURRENT=$(grep '^RPI_SYNC_VERSION=' "$RPI_SYNC_SCRIPT" | head -1 | cut -d'"' -f2)
             echo "  Current version: ${CURRENT}"
             exit 0
             ;;
@@ -89,9 +89,9 @@ if ! [[ "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     exit 1
 fi
 
-CURRENT_VERSION=$(grep '^PISYNC_VERSION=' "$PISYNC_SCRIPT" | head -1 | cut -d'"' -f2)
+CURRENT_VERSION=$(grep '^RPI_SYNC_VERSION=' "$RPI_SYNC_SCRIPT" | head -1 | cut -d'"' -f2)
 RELEASE_TAG="v${NEW_VERSION}"
-TARBALL_NAME="pisync-${RELEASE_TAG}.tar.gz"
+TARBALL_NAME="rpi-sync-${RELEASE_TAG}.tar.gz"
 
 echo -e "  ${DIM}Current version : ${CURRENT_VERSION}${NC}"
 echo -e "  ${DIM}New version     : ${NEW_VERSION}${NC}"
@@ -104,8 +104,8 @@ echo ""
 step "Pre-flight checks..."
 
 # Must be run from repo root
-if [ ! -f "$PISYNC_SCRIPT" ]; then
-    error "pisync script not found at $PISYNC_SCRIPT"
+if [ ! -f "$RPI_SYNC_SCRIPT" ]; then
+    error "rpi-sync script not found at $RPI_SYNC_SCRIPT"
     exit 1
 fi
 
@@ -141,22 +141,22 @@ fi
 
 info "Pre-flight checks passed"
 
-# ── Bump version in pisync script ─────────────────────────────────────────
+# ── Bump version in rpi-sync script ─────────────────────────────────────────
 step "Bumping version: ${CURRENT_VERSION} → ${NEW_VERSION}..."
 
 if [ "$DRY_RUN" = false ]; then
-    sed -i "s/^PISYNC_VERSION=\"${CURRENT_VERSION}\"/PISYNC_VERSION=\"${NEW_VERSION}\"/" "$PISYNC_SCRIPT"
+    sed -i "s/^RPI_SYNC_VERSION=\"${CURRENT_VERSION}\"/RPI_SYNC_VERSION=\"${NEW_VERSION}\"/" "$RPI_SYNC_SCRIPT"
     # Verify the bump applied
-    APPLIED=$(grep '^PISYNC_VERSION=' "$PISYNC_SCRIPT" | head -1 | cut -d'"' -f2)
+    APPLIED=$(grep '^RPI_SYNC_VERSION=' "$RPI_SYNC_SCRIPT" | head -1 | cut -d'"' -f2)
     if [ "$APPLIED" != "$NEW_VERSION" ]; then
         error "Version bump failed — expected ${NEW_VERSION}, got ${APPLIED}"
         exit 1
     fi
     # Syntax check after edit
-    bash -n "$PISYNC_SCRIPT" || { error "Syntax error in pisync after version bump"; exit 1; }
+    bash -n "$RPI_SYNC_SCRIPT" || { error "Syntax error in rpi-sync after version bump"; exit 1; }
     info "Version bumped and syntax verified"
 else
-    info "[dry-run] Would bump PISYNC_VERSION to ${NEW_VERSION}"
+    info "[dry-run] Would bump RPI_SYNC_VERSION to ${NEW_VERSION}"
 fi
 
 # ── Build tarball ─────────────────────────────────────────────────────────
@@ -167,25 +167,25 @@ if [ "$DRY_RUN" = false ]; then
 
     # Build into a versioned subdirectory inside the tarball
     STAGE_DIR=$(mktemp -d)
-    STAGE_PKG="$STAGE_DIR/pisync-${NEW_VERSION}"
+    STAGE_PKG="$STAGE_DIR/rpi-sync-${NEW_VERSION}"
     mkdir -p "$STAGE_PKG"
 
     # Files to include
-    cp "$REPO_ROOT/pisync"          "$STAGE_PKG/pisync"
-    cp "$REPO_ROOT/install.sh"      "$STAGE_PKG/install.sh"
-    cp "$REPO_ROOT/healthcheck.sh"  "$STAGE_PKG/healthcheck.sh"
-    cp "$REPO_ROOT/README.md"       "$STAGE_PKG/README.md"
-    cp "$REPO_ROOT/LICENSE"         "$STAGE_PKG/LICENSE"
-    cp -r "$REPO_ROOT/templates"    "$STAGE_PKG/templates"
-    cp -r "$REPO_ROOT/docs"         "$STAGE_PKG/docs"
+    cp "$REPO_ROOT/rpi-sync"          "$STAGE_PKG/rpi-sync"
+    cp "$REPO_ROOT/install.sh"        "$STAGE_PKG/install.sh"
+    cp "$REPO_ROOT/healthcheck.sh"    "$STAGE_PKG/healthcheck.sh"
+    cp "$REPO_ROOT/README.md"         "$STAGE_PKG/README.md"
+    cp "$REPO_ROOT/LICENSE"           "$STAGE_PKG/LICENSE"
+    cp -r "$REPO_ROOT/templates"      "$STAGE_PKG/templates"
+    cp -r "$REPO_ROOT/docs"           "$STAGE_PKG/docs"
 
-    chmod +x "$STAGE_PKG/pisync" "$STAGE_PKG/install.sh" "$STAGE_PKG/healthcheck.sh"
+    chmod +x "$STAGE_PKG/rpi-sync" "$STAGE_PKG/install.sh" "$STAGE_PKG/healthcheck.sh"
 
     # Create tarball with reproducible mtime
     tar -czf "$DIST_DIR/$TARBALL_NAME" \
         -C "$STAGE_DIR" \
         --owner=0 --group=0 \
-        "pisync-${NEW_VERSION}"
+        "rpi-sync-${NEW_VERSION}"
 
     rm -rf "$STAGE_DIR"
 
@@ -198,7 +198,7 @@ if [ "$DRY_RUN" = false ]; then
     cat "$DIST_DIR/${TARBALL_NAME}.sha256"
 else
     info "[dry-run] Would build dist/${TARBALL_NAME}"
-    echo -e "    ${DIM}Contents: pisync, install.sh, healthcheck.sh, README.md, LICENSE, templates/, docs/${NC}"
+    echo -e "    ${DIM}Contents: rpi-sync, install.sh, healthcheck.sh, README.md, LICENSE, templates/, docs/${NC}"
 fi
 
 # ── Commit version bump ───────────────────────────────────────────────────
@@ -206,7 +206,7 @@ if [ "$HAS_GIT" = true ]; then
     step "Committing version bump..."
 
     if [ "$DRY_RUN" = false ]; then
-        git -C "$REPO_ROOT" add "$PISYNC_SCRIPT"
+        git -C "$REPO_ROOT" add "$RPI_SYNC_SCRIPT"
         git -C "$REPO_ROOT" commit -m "chore(release): bump version to ${NEW_VERSION}"
         info "Committed version bump"
     else
@@ -218,7 +218,7 @@ if [ "$HAS_GIT" = true ]; then
 
     if [ "$DRY_RUN" = false ]; then
         git -C "$REPO_ROOT" tag -a "$RELEASE_TAG" \
-            -m "PiSync ${NEW_VERSION} — LAN Project Sync for Pi Networks"
+            -m "rpi-sync ${NEW_VERSION} — LAN Project Sync for Pi Networks"
         info "Tagged ${RELEASE_TAG}"
     else
         info "[dry-run] Would tag: ${RELEASE_TAG}"

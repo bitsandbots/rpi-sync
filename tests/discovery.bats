@@ -1,14 +1,14 @@
 #!/usr/bin/env bats
-# Tests for pisync discovery/scanning functionality
+# Tests for rpi-sync discovery/scanning functionality
 
 load 'helpers'
 
 setup() {
     setup_test_env
-    # Path to pisync script
-    PISYNC_SCRIPT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/pisync"
-    export PISYNC_TESTING=1
-    export PISYNC_HOME="$PISYNC_DIR"
+    # Path to rpi-sync script
+    PISYNC_SCRIPT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/rpi-sync"
+    export RPI_SYNC_TESTING=1
+    export RPI_SYNC_HOME="$RPI_SYNC_DIR"
 }
 
 teardown() {
@@ -25,7 +25,7 @@ teardown() {
 
     run discover_nodes
     [ "$status" -eq 0 ]
-    [[ "$output" == *"No PiSync nodes discovered"* ]] || \
+    [[ "$output" == *"No rpi-sync nodes discovered"* ]] || \
         [[ "$output" == *"Checking configured nodes"* ]] || \
         [[ "$output" == *"subnet scan"* ]]
 }

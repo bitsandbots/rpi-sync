@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-PiSync is a single-file bash CLI (`pisync`) that synchronizes project directories across Raspberry Pi nodes over LAN using rsync/SSH with zero-config Avahi/mDNS discovery. MIT-licensed, cloud-independent, offline-first.
+rpi-sync is a single-file bash CLI (`rpi-sync`) that synchronizes project directories across Raspberry Pi nodes over LAN using rsync/SSH with zero-config Avahi/mDNS discovery. MIT-licensed, cloud-independent, offline-first.
 
-No build step. No package manager. Development = edit `pisync`, then run tests.
+No build step. No package manager. Development = edit `rpi-sync`, then run tests.
 
 ## Commands
 
@@ -21,30 +21,30 @@ sudo ./install.sh --uninstall       # remove binary
 bash healthcheck.sh
 
 # Run directly without installing
-bash pisync <command>
+bash rpi-sync <command>
 
-# Common dev cycle: edit pisync, then test a subcommand
-bash pisync --help
-bash pisync init
-bash pisync status                  # check node connectivity
-bash pisync dry-run                 # preview sync
+# Common dev cycle: edit rpi-sync, then test a subcommand
+bash rpi-sync --help
+bash rpi-sync init
+bash rpi-sync status                  # check node connectivity
+bash rpi-sync dry-run                 # preview sync
 
 # Sync commands
-bash pisync sync [project] [node]   # sync per DEFAULT_DIRECTION
-bash pisync push [project] [node]   # force push (local→remote)
-bash pisync pull [project] [node]   # force pull (remote→local)
-bash pisync deploy [project]        # push to all nodes + sync node list
-bash pisync watch <project>         # inotify-based auto-sync (foreground)
-bash pisync conflicts <project> <node>  # hash-based diff check
+bash rpi-sync sync [project] [node]   # sync per DEFAULT_DIRECTION
+bash rpi-sync push [project] [node]   # force push (local→remote)
+bash rpi-sync pull [project] [node]   # force pull (remote→local)
+bash rpi-sync deploy [project]        # push to all nodes + sync node list
+bash rpi-sync watch <project>         # inotify-based auto-sync (foreground)
+bash rpi-sync conflicts <project> <node>  # hash-based diff check
 
 # Node discovery and diagnostics
-bash pisync discover                # Avahi + subnet scan + configured nodes
-bash pisync log [lines]             # tail ~/.pisync/pisync.log
+bash rpi-sync discover                # Avahi + subnet scan + configured nodes
+bash rpi-sync log [lines]             # tail ~/.rpi-sync/rpi-sync.log
 
 # SSH key setup
 ./setup-ssh-keys.sh                 # Deploy keys to all nodes (interactive)
 ./setup-ssh-keys.sh --check         # Verify SSH access only
-bash pisync keys <host> [user] [port]  # Deploy keys to single node
+bash rpi-sync keys <host> [user] [port]  # Deploy keys to single node
 
 # Release a new version
 ./release.sh 1.1.0 --dry-run       # preview
@@ -58,14 +58,14 @@ bash pisync keys <host> [user] [port]  # Deploy keys to single node
 
 ## Architecture
 
-**Everything lives in `pisync`** — one bash script, ~800 lines, `set -euo pipefail`.
+**Everything lives in `rpi-sync`** — one bash script, ~800 lines, `set -euo pipefail`.
 
 | Layer | Details |
 |---|---|
 | Entry | `main()` dispatches via `case` on `$1` |
-| Config | Sourced bash file at `~/.pisync/pisync.conf` — pipe-delimited `PROJECT_NN` and `NODE_NN` vars |
-| State | `~/.pisync/state/{project}_{host}.last` — ISO timestamp + direction + duration + result |
-| Locking | `~/.pisync/pisync.lock` — PID file, stale-lock detection on acquire |
+| Config | Sourced bash file at `~/.rpi-sync/rpi-sync.conf` — pipe-delimited `PROJECT_NN` and `NODE_NN` vars |
+| State | `~/.rpi-sync/state/{project}_{host}.last` — ISO timestamp + direction + duration + result |
+| Locking | `~/.rpi-sync/rpi-sync.lock` — PID file, stale-lock detection on acquire |
 | Sync | `sync_project_to_node()` → `rsync -azP --checksum --delete` over SSH |
 | Watch | `inotifywait -m -r` with 2s debounce via background subshell + `kill $debounce_pid` |
 | Discovery | Avahi/mDNS (`_pisync._tcp`) → subnet TCP scan → configured nodes check |
@@ -77,7 +77,7 @@ PROJECT_01="name|local_path|remote_path|exclude_file"
 NODE_01="name|host|user|port"
 ```
 
-**State file format** (`~/.pisync/state/{project}_{host}.last`):
+**State file format** (`~/.rpi-sync/state/{project}_{host}.last`):
 ```
 2026-04-14T10:30:00+00:00|push|4s|success
 ```
@@ -85,7 +85,7 @@ Fields: ISO timestamp | direction | duration | result
 
 **Rsync flags always included:** `-azP --delete --checksum --timeout=30 --stats --human-readable --itemize-changes`
 
-Default excludes hardcoded in `build_rsync_args()`: `.git/objects`, `__pycache__`, `*.pyc`, `node_modules`, `.DS_Store`, `*.swp/swo`, `.pisync-local`.
+Default excludes hardcoded in `build_rsync_args()`: `.git/objects`, `__pycache__`, `*.pyc`, `node_modules`, `.DS_Store`, `*.swp/swo`, `.rpi-sync-local`.
 
 **Conflict detection:** `check_conflicts()` runs `find … -type f -exec md5sum` locally and via SSH on remote, then compares hashes. Reports differing files without modifying anything.
 
@@ -93,10 +93,10 @@ Default excludes hardcoded in `build_rsync_args()`: `.git/objects`, `__pycache__
 
 | File | Purpose |
 |---|---|
-| `pisync` | The entire tool — all subcommands, sync engine, discovery |
+| `rpi-sync` | The entire tool — all subcommands, sync engine, discovery |
 | `setup-ssh-keys.sh` | Batch SSH key deployment to all configured nodes (interactive) |
 | `install.sh` | Installs binary + deps; supports `--prefix`, `--check`, `--uninstall` |
-| `release.sh` | Bumps version, builds `dist/pisync-vX.Y.Z.tar.gz`, creates git tag |
+| `release.sh` | Bumps version, builds `dist/rpi-sync-vX.Y.Z.tar.gz`, creates git tag |
 | `healthcheck.sh` | Pre-flight checks: deps, config, node reachability, SSH auth, systemd service |
 | `templates/excludes/` | Rsync exclude templates for `claude-harness`, `hydromazing`, `nexus` |
 | `docs/` | Architecture diagrams, CLI reference, internals — deep-dive context |
@@ -105,9 +105,9 @@ Default excludes hardcoded in `build_rsync_args()`: `.git/objects`, `__pycache__
 
 ## Key conventions
 
-- All user-facing messages go through `info()` / `warn()` / `error()` / `step()` — each logs to `$PISYNC_LOG` AND prints with color.
+- All user-facing messages go through `info()` / `warn()` / `error()` / `step()` — each logs to `$RPI_SYNC_LOG` AND prints with color.
 - Lock must be acquired before any write operation; always `trap release_lock EXIT` in long-running commands.
-- Daemon releases lock between interval sleeps — manual `pisync sync` can run during daemon sleep period.
+- Daemon releases lock between interval sleeps — manual `rpi-sync sync` can run during daemon sleep period.
 - SSH calls use `-o BatchMode=yes -o ConnectTimeout=N` — never prompt for passwords.
 - The `dry-run` subcommand sets `DRY_RUN=true` then calls `sync_project` — the flag is checked inside `sync_project_to_node()`.
 - All loops that consume `get_projects` / `get_nodes` must use process substitution `< <(get_projects)` not pipes — pipes run in a subshell and variable assignments are lost.
@@ -120,19 +120,19 @@ Dev: `bats` (test suite), `shellcheck` (linting)
 
 ## SSH Key Requirements
 
-PiSync uses `BatchMode=yes` for SSH connections, which **cannot prompt for passphrases**. This means:
+rpi-sync uses `BatchMode=yes` for SSH connections, which **cannot prompt for passphrases**. This means:
 
 - **Passphrase-protected keys will fail** silently (SSH offers the key, server accepts it, but SSH can't decrypt it)
-- Use a **passphrase-less key** for pisync nodes, or load the key into ssh-agent
+- Use a **passphrase-less key** for rpi-sync nodes, or load the key into ssh-agent
 
 **Recommended setup:**
-1. Create a dedicated pisync key: `ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_pisync -N ""`
-2. Run `./setup-ssh-keys.sh` which auto-configures `~/.ssh/config` for pisync nodes
+1. Create a dedicated rpi-sync key: `ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_rpi-sync -N ""`
+2. Run `./setup-ssh-keys.sh` which auto-configures `~/.ssh/config` for rpi-sync nodes
 
 **SSH config pattern** (auto-generated by setup-ssh-keys.sh):
 ```
 Host rhubarb.local potpie.local meringue.local keylime.local
-    IdentityFile ~/.ssh/id_ed25519_pisync
+    IdentityFile ~/.ssh/id_ed25519_rpi-sync
     IdentitiesOnly yes
     BatchMode yes
 ```

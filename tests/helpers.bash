@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test helpers for pisync tests
+# Test helpers for rpi-sync tests
 # Source this file in bats tests: load 'helpers'
 
 # ── Test Environment Setup ──────────────────────────────────────────────────
@@ -8,14 +8,14 @@
 setup_test_env() {
     export TEST_DIR
     TEST_DIR=$(mktemp -d)
-    export PISYNC_DIR="$TEST_DIR/.pisync"
-    export PISYNC_CONF="$PISYNC_DIR/pisync.conf"
-    export PISYNC_LOG="$PISYNC_DIR/pisync.log"
-    export PISYNC_STATE="$PISYNC_DIR/state"
-    export PISYNC_LOCK="$PISYNC_DIR/pisync.lock"
+    export RPI_SYNC_DIR="$TEST_DIR/.rpi-sync"
+    export RPI_SYNC_CONF="$RPI_SYNC_DIR/rpi-sync.conf"
+    export RPI_SYNC_LOG="$RPI_SYNC_DIR/rpi-sync.log"
+    export RPI_SYNC_STATE="$RPI_SYNC_DIR/state"
+    export RPI_SYNC_LOCK="$RPI_SYNC_DIR/rpi-sync.lock"
 
-    mkdir -p "$PISYNC_DIR" "$PISYNC_STATE"
-    touch "$PISYNC_CONF" "$PISYNC_LOG"
+    mkdir -p "$RPI_SYNC_DIR" "$RPI_SYNC_STATE"
+    touch "$RPI_SYNC_CONF" "$RPI_SYNC_LOG"
 }
 
 # Clean up test environment
@@ -94,7 +94,7 @@ if [[ "$*" == *"hostname"* ]]; then
     echo "mock-host"
     exit 0
 fi
-if [[ "$*" == *"[ -f ~/.pisync/pisync.conf ]"* ]]; then
+if [[ "$*" == *"[ -f ~/.rpi-sync/rpi-sync.conf ]"* ]]; then
     echo "yes"
     exit 0
 fi
@@ -180,25 +180,25 @@ assert_dir_exists() {
 assert_state_file_exists() {
     local project="$1"
     local host="$2"
-    [ -f "$PISYNC_STATE/${project}_${host}.last" ]
+    [ -f "$RPI_SYNC_STATE/${project}_${host}.last" ]
 }
 
 # ── Run pisync command in test environment ────────────────────────────────
 
-# Source pisync for testing (sets PISYNC_TESTING to prevent main() execution)
-source_pisync() {
-    export PISYNC_TESTING=1
-    export PISYNC_HOME="$PISYNC_DIR"
-    export PISYNC_CONF PISYNC_LOG PISYNC_LOCK PISYNC_STATE
+# Source rpi-sync for testing (sets RPI_SYNC_TESTING to prevent main() execution)
+source_rpi_sync() {
+    export RPI_SYNC_TESTING=1
+    export RPI_SYNC_HOME="$RPI_SYNC_DIR"
+    export RPI_SYNC_CONF RPI_SYNC_LOG RPI_SYNC_LOCK RPI_SYNC_STATE
     # shellcheck source=/dev/null
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
 }
 
-run_pisync() {
-    # Source pisync with test environment
-    export PISYNC_TESTING=1
-    export PISYNC_HOME="$PISYNC_DIR"
-    export PISYNC_DIR PISYNC_CONF PISYNC_LOG PISYNC_STATE PISYNC_LOCK
+run_rpi_sync() {
+    # Source rpi-sync with test environment
+    export RPI_SYNC_TESTING=1
+    export RPI_SYNC_HOME="$RPI_SYNC_DIR"
+    export RPI_SYNC_DIR RPI_SYNC_CONF RPI_SYNC_LOG RPI_SYNC_STATE RPI_SYNC_LOCK
     cd "$TEST_DIR" || return 1
-    bash -c "PISYNC_TESTING=1 PISYNC_HOME='$PISYNC_DIR' source '$PISYNC_SCRIPT' && $*" 2>&1
+    bash -c "RPI_SYNC_TESTING=1 RPI_SYNC_HOME='$RPI_SYNC_DIR' source '$RPI_SYNC_SCRIPT' && $*" 2>&1
 }

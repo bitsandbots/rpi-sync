@@ -1,13 +1,13 @@
 #!/usr/bin/env bats
-# Tests for pisync deploy functionality
+# Tests for rpi-sync deploy functionality
 
 load 'helpers'
 
 setup() {
     setup_test_env
-    PISYNC_SCRIPT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/pisync"
-    export PISYNC_TESTING=1
-    export PISYNC_HOME="$PISYNC_DIR"
+    RPI_SYNC_SCRIPT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/rpi-sync"
+    export RPI_SYNC_TESTING=1
+    export RPI_SYNC_HOME="$RPI_SYNC_DIR"
     PROJECT_PATH=$(create_mock_project "testproj")
 }
 
@@ -18,7 +18,7 @@ teardown() {
 # ── Deploy Command Tests ────────────────────────────────────────────────────
 
 @test "deploy: fails without any configured projects" {
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     # No projects configured
 
     run cmd_deploy <<< "n"
@@ -29,7 +29,7 @@ teardown() {
 
 @test "deploy: fails without any configured nodes" {
     create_mock_project_config "testproj" "$PROJECT_PATH"
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     load_config
     # No nodes configured
 
@@ -41,10 +41,10 @@ teardown() {
 
 @test "deploy: dry-run preview fails on non-existent local path" {
     # Configure project with non-existent path
-    echo 'PROJECT_broken="broken|/nonexistent/path|/remote/path|"' >> "$PISYNC_CONF"
-    echo 'NODE_test="test|192.168.1.99|pi|22"' >> "$PISYNC_CONF"
+    echo 'PROJECT_broken="broken|/nonexistent/path|/remote/path|"' >> "$RPI_SYNC_CONF"
+    echo 'NODE_test="test|192.168.1.99|pi|22"' >> "$RPI_SYNC_CONF"
 
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     init_dirs
     load_config
 
@@ -57,9 +57,9 @@ teardown() {
 
 @test "deploy: dry-run succeeds with valid config but unreachable nodes" {
     create_mock_project_config "testproj" "$PROJECT_PATH"
-    echo 'NODE_test="test|192.168.99.99|pi|22"' >> "$PISYNC_CONF"
+    echo 'NODE_test="test|192.168.99.99|pi|22"' >> "$RPI_SYNC_CONF"
 
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     load_config
 
     # Dry-run should attempt sync but fail on unreachable node
@@ -73,9 +73,9 @@ teardown() {
 
 @test "deploy: requires user confirmation before proceeding" {
     create_mock_project_config "testproj" "$PROJECT_PATH"
-    echo 'NODE_test="test|192.168.99.99|pi|22"' >> "$PISYNC_CONF"
+    echo 'NODE_test="test|192.168.99.99|pi|22"' >> "$RPI_SYNC_CONF"
 
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     load_config
 
     # Send "n" to decline
@@ -88,12 +88,12 @@ teardown() {
 
 @test "get_projects: parses PROJECT_ entries correctly" {
     mkdir -p "$TEST_DIR/projects/alpha" "$TEST_DIR/projects/beta"
-    cat >> "$PISYNC_CONF" << EOF
+    cat >> "$RPI_SYNC_CONF" << EOF
 PROJECT_alpha="alpha|$TEST_DIR/projects/alpha|/home/pi/alpha|"
 PROJECT_beta="beta|$TEST_DIR/projects/beta|/home/pi/beta|"
 EOF
 
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     load_config
 
     local projects
@@ -104,9 +104,9 @@ EOF
 }
 
 @test "get_projects: handles exclude_file field" {
-    echo 'PROJECT_with_exclude="exproj|/path/to/exproj|/remote/exproj|/path/to/excludes"' >> "$PISYNC_CONF"
+    echo 'PROJECT_with_exclude="exproj|/path/to/exproj|/remote/exproj|/path/to/excludes"' >> "$RPI_SYNC_CONF"
 
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     load_config
 
     local proj
@@ -117,9 +117,9 @@ EOF
 
 @test "sync_project_to_node: fails on missing local path" {
     create_mock_project_config "testproj" "$PROJECT_PATH"
-    echo 'NODE_test="test|192.168.1.99|pi|22"' >> "$PISYNC_CONF"
+    echo 'NODE_test="test|192.168.1.99|pi|22"' >> "$RPI_SYNC_CONF"
 
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     load_config
 
     # Call with non-existent path
@@ -131,31 +131,31 @@ EOF
 # ── Lock Management Tests ────────────────────────────────────────────────────
 
 @test "acquire_lock: prevents concurrent operations" {
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     load_config
 
     # First acquire should succeed
     acquire_lock
-    [ -f "$PISYNC_LOCK" ]
+    [ -f "$RPI_SYNC_LOCK" ]
 
     # Second acquire should fail (simulated by checking lock file)
     local pid
-    pid=$(cat "$PISYNC_LOCK")
+    pid=$(cat "$RPI_SYNC_LOCK")
     [ "$pid" -eq $$ ]
 
     release_lock
-    [ ! -f "$PISYNC_LOCK" ]
+    [ ! -f "$RPI_SYNC_LOCK" ]
 }
 
 @test "release_lock: cleans up lock file" {
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     load_config
 
     acquire_lock
-    [ -f "$PISYNC_LOCK" ]
+    [ -f "$RPI_SYNC_LOCK" ]
 
     release_lock
-    [ ! -f "$PISYNC_LOCK" ]
+    [ ! -f "$RPI_SYNC_LOCK" ]
 }
 
 # ── State File Tests ─────────────────────────────────────────────────────────
@@ -163,7 +163,7 @@ EOF
 @test "state file: created after successful sync" {
     # This test would require mocking rsync/SSH
     # For unit test, we verify the state file format is correct
-    local state_file="$PISYNC_STATE/testproj_mockhost.last"
+    local state_file="$RPI_SYNC_STATE/testproj_mockhost.last"
     echo "2026-04-15T10:00:00+00:00|push|5s|success" > "$state_file"
 
     [ -f "$state_file" ]

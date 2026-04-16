@@ -1,4 +1,4 @@
-# Pi**Sync**
+# rpi**Sync**
 
 **LAN Project Synchronization for Raspberry Pi Networks**
 
@@ -6,7 +6,7 @@ CoreConduit Consulting Services | MIT License
 
 ---
 
-PiSync keeps project directories synchronized across multiple Raspberry Pi nodes on your LAN. Built for offline-first, cloud-independent infrastructure — no external services, no accounts, no telemetry. Just rsync over SSH with zero-config mDNS discovery.
+rpi-sync keeps project directories synchronized across multiple Raspberry Pi nodes on your LAN. Built for offline-first, cloud-independent infrastructure — no external services, no accounts, no telemetry. Just rsync over SSH with zero-config mDNS discovery.
 
 ## What it does
 
@@ -32,8 +32,8 @@ PiSync keeps project directories synchronized across multiple Raspberry Pi nodes
 ### 1. Install on every node
 
 ```bash
-git clone <your-repo>/pisync.git
-cd pisync
+git clone <your-repo>/rpi-sync.git
+cd rpi-sync
 chmod +x install.sh
 sudo ./install.sh
 ```
@@ -41,18 +41,18 @@ sudo ./install.sh
 ### 2. Initialize
 
 ```bash
-pisync init
+rpi-sync init
 ```
 
-This creates `~/.pisync/pisync.conf` with a pre-configured entry for the `.claude` harness. Edit the file to uncomment nodes and add your projects.
+This creates `~/.rpi-sync/rpi-sync.conf` with a pre-configured entry for the `.claude` harness. Edit the file to uncomment nodes and add your projects.
 
 ### 3. Register peers
 
 ```bash
 # On your primary node
-pisync add-node pi-workshop 192.168.1.101
-pisync add-node pi-garden   192.168.1.102
-pisync add-node pi-nexus    192.168.1.103
+rpi-sync add-node pi-workshop 192.168.1.101
+rpi-sync add-node pi-garden   192.168.1.102
+rpi-sync add-node pi-nexus    192.168.1.103
 ```
 
 Each `add-node` prompts to deploy SSH keys immediately.
@@ -69,34 +69,34 @@ Alternatively, deploy SSH keys to all configured nodes at once:
 
 ```bash
 # Sync everything to all nodes
-pisync sync
+rpi-sync sync
 
 # Sync a specific project
-pisync sync claude-harness
+rpi-sync sync claude-harness
 
 # Sync to a specific node
-pisync sync claude-harness pi-workshop
+rpi-sync sync claude-harness pi-workshop
 
 # Pull from remote instead of push
-pisync pull claude-harness pi-workshop
+rpi-sync pull claude-harness pi-workshop
 
 # Preview without making changes
-pisync dry-run
+rpi-sync dry-run
 ```
 
 ### 5. Auto-sync
 
 ```bash
 # Watch mode — syncs on file change (foreground)
-pisync watch claude-harness
+rpi-sync watch claude-harness
 
 # Daemon mode — syncs on interval (background service)
-pisync install-service
+rpi-sync install-service
 ```
 
 ## Configuration
 
-All configuration lives in `~/.pisync/pisync.conf`:
+All configuration lives in `~/.rpi-sync/rpi-sync.conf`:
 
 ```bash
 # ── Sync Settings ─────────────────────────────
@@ -107,7 +107,7 @@ CONFLICT_STRATEGY="newest"     # newest | source | manual
 
 # ── Projects ──────────────────────────────────
 # Format: name|local_path|remote_path|exclude_file
-PROJECT_01="claude-harness|/home/pi/.claude|/home/pi/.claude|~/.pisync/excludes/claude-harness.exclude"
+PROJECT_01="claude-harness|/home/pi/.claude|/home/pi/.claude|~/.rpi-sync/excludes/claude-harness.exclude"
 PROJECT_02="hydromazing|/home/pi/projects/hydromazing|/home/pi/projects/hydromazing|"
 
 # ── Nodes ─────────────────────────────────────
@@ -118,7 +118,7 @@ NODE_02="pi-garden|192.168.1.102|pi|22"
 
 ### Exclude files
 
-Each project can have an exclude file with rsync patterns. The default for `.claude` is created at `~/.pisync/excludes/claude-harness.exclude`:
+Each project can have an exclude file with rsync patterns. The default for `.claude` is created at `~/.rpi-sync/excludes/claude-harness.exclude`:
 
 ```
 # Runtime state (node-specific)
@@ -128,30 +128,30 @@ Each project can have an exclude file with rsync patterns. The default for `.cla
 logs/
 *.log
 tmp/
-.pisync-local
+.rpi-sync-local
 ```
 
-Create a `.pisync-local` file inside any project directory to mark node-specific content that should never sync.
+Create a `.rpi-sync-local` file inside any project directory to mark node-specific content that should never sync.
 
 ## Commands reference
 
 | Command | Description |
 |---------|-------------|
-| `pisync init` | Initialize PiSync on this node |
-| `pisync add-node <n> <host>` | Register a LAN peer |
-| `pisync add-project <n> <path>` | Register a project to sync |
-| `pisync keys <host> [user] [port]` | Deploy SSH keys to a node |
-| `pisync sync [project] [node]` | Sync now |
-| `pisync push [project] [node]` | Push to remote |
-| `pisync pull [project] [node]` | Pull from remote |
-| `pisync deploy [project]` | Push to all nodes + sync node list |
-| `pisync watch <project>` | Watch and auto-sync on change |
-| `pisync dry-run [project] [node]` | Preview sync without changes |
-| `pisync status` | Show node and sync status |
-| `pisync discover` | Scan LAN for PiSync nodes |
-| `pisync conflicts <project> <node>` | Check for file conflicts |
-| `pisync install-service` | Install systemd auto-sync daemon |
-| `pisync log [lines]` | View sync log |
+| `rpi-sync init` | Initialize rpi-sync on this node |
+| `rpi-sync add-node <n> <host>` | Register a LAN peer |
+| `rpi-sync add-project <n> <path>` | Register a project to sync |
+| `rpi-sync keys <host> [user] [port]` | Deploy SSH keys to a node |
+| `rpi-sync sync [project] [node]` | Sync now |
+| `rpi-sync push [project] [node]` | Push to remote |
+| `rpi-sync pull [project] [node]` | Pull from remote |
+| `rpi-sync deploy [project]` | Push to all nodes + sync node list |
+| `rpi-sync watch <project>` | Watch and auto-sync on change |
+| `rpi-sync dry-run [project] [node]` | Preview sync without changes |
+| `rpi-sync status` | Show node and sync status |
+| `rpi-sync discover` | Scan LAN for rpi-sync nodes |
+| `rpi-sync conflicts <project> <node>` | Check for file conflicts |
+| `rpi-sync install-service` | Install systemd auto-sync daemon |
+| `rpi-sync log [lines]` | View sync log |
 
 ## Architecture
 
@@ -160,7 +160,7 @@ Create a `.pisync-local` file inside any project directory to mark node-specific
 │  pi-primary         │◄──────────────────►│  pi-workshop        │
 │  ├─ .claude/        │                    │  ├─ .claude/        │
 │  ├─ hydromazing/    │     Avahi/mDNS     │  ├─ hydromazing/    │
-│  └─ ~/.pisync/      │◄──── discovery ───►│  └─ ~/.pisync/      │
+│  └─ ~/.rpi-sync/      │◄──── discovery ───►│  └─ ~/.rpi-sync/      │
 └─────────────────────┘                    └─────────────────────┘
          ▲                                          ▲
          │            rsync/SSH                     │
@@ -169,14 +169,14 @@ Create a `.pisync-local` file inside any project directory to mark node-specific
                ┌────────┴────────┐
                │  pi-garden      │
                │  ├─ .claude/    │
-               │  └─ ~/.pisync/  │
+               │  └─ ~/.rpi-sync/  │
                └─────────────────┘
 ```
 
 - **No central server** — any node can push or pull from any other
 - **rsync checksums** — only changed bytes transfer, not full files
 - **SSH transport** — encrypted, authenticated, uses your existing keys
-- **Avahi/mDNS** — nodes advertise `_pisync._tcp` for automatic discovery
+- **Avahi/mDNS** — nodes advertise `_rpi-sync._tcp` for automatic discovery
 - **inotify watch** — file change triggers sync within 2s (debounced)
 - **Systemd timer** — configurable interval polling as alternative to watch
 
@@ -184,49 +184,49 @@ Create a `.pisync-local` file inside any project directory to mark node-specific
 
 ```bash
 # Register the project
-pisync add-project dotfiles ~/.dotfiles
+rpi-sync add-project dotfiles ~/.dotfiles
 
 # Create an exclude file (optional)
-cat > ~/.pisync/excludes/dotfiles.exclude << 'EOF'
+cat > ~/.rpi-sync/excludes/dotfiles.exclude << 'EOF'
 .local-machine
 *.bak
 EOF
 
 # Test with dry-run
-pisync dry-run dotfiles
+rpi-sync dry-run dotfiles
 
 # Sync
-pisync sync dotfiles
+rpi-sync sync dotfiles
 ```
 
 ## Troubleshooting
 
 **"Permission denied" on sync**
-→ Run `pisync keys <host>` to deploy SSH keys
+→ Run `rpi-sync keys <host>` to deploy SSH keys
 → If keys are deployed but still failing, check if your SSH key has a **passphrase**:
   ```bash
   ssh -vvv -o BatchMode=yes user@host 'hostname' 2>&1 | grep passphrase
   ```
   If you see `read_passphrase: can't open /dev/tty`, your key is passphrase-protected.
-  PiSync requires a **passphrase-less key** for BatchMode SSH:
+  rpi-sync requires a **passphrase-less key** for BatchMode SSH:
   ```bash
-  # Create a dedicated pisync key
-  ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_pisync -N ""
+  # Create a dedicated rpi-sync key
+  ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_rpi-sync -N ""
 
   # Re-run setup to deploy and configure
   ./setup-ssh-keys.sh
   ```
 
-**"No PiSync nodes discovered"**
-→ Check Avahi: `avahi-browse -t -r _pisync._tcp`
-→ Or add nodes manually: `pisync add-node <n> <ip>`
+**"No rpi-sync nodes discovered"**
+→ Check Avahi: `avahi-browse -t -r _rpi-sync._tcp`
+→ Or add nodes manually: `rpi-sync add-node <n> <ip>`
 
 **Sync is slow**
 → rsync uses checksums by default; first sync transfers everything, subsequent syncs only transfer deltas
 
 **Conflicts detected**
-→ Run `pisync conflicts <project> <node>` to see which files differ
-→ Resolve manually, then `pisync push` or `pisync pull` to establish source of truth
+→ Run `rpi-sync conflicts <project> <node>` to see which files differ
+→ Resolve manually, then `rpi-sync push` or `rpi-sync pull` to establish source of truth
 
 ## Development
 

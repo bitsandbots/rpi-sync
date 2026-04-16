@@ -1,13 +1,13 @@
 #!/usr/bin/env bats
-# Tests for pisync SSH/connection functionality
+# Tests for rpi-sync SSH/connection functionality
 
 load 'helpers'
 
 setup() {
     setup_test_env
-    PISYNC_SCRIPT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/pisync"
-    export PISYNC_TESTING=1
-    export PISYNC_HOME="$PISYNC_DIR"
+    RPI_SYNC_SCRIPT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/rpi-sync"
+    export RPI_SYNC_TESTING=1
+    export RPI_SYNC_HOME="$RPI_SYNC_DIR"
 }
 
 teardown() {
@@ -17,7 +17,7 @@ teardown() {
 # ── SSH Key Setup Tests ─────────────────────────────────────────────────────
 
 @test "setup_keys: generates Ed25519 key if missing" {
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
 
     # Create temp SSH dir for test
     export HOME="$TEST_DIR"
@@ -32,7 +32,7 @@ teardown() {
 }
 
 @test "setup_keys: skips generation if key exists" {
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     export HOME="$TEST_DIR"
     mkdir -p "$TEST_DIR/.ssh"
 
@@ -50,34 +50,34 @@ teardown() {
 # ── SSH Connection Tests ────────────────────────────────────────────────────
 
 @test "SSH batch mode: prevents password prompts" {
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
 
     # Check that SSH calls use BatchMode=yes
     # This is defined in the sync functions
-    grep -q "BatchMode=yes" "$PISYNC_SCRIPT"
+    grep -q "BatchMode=yes" "$RPI_SYNC_SCRIPT"
     [ "$?" -eq 0 ]
 }
 
 @test "SSH timeout: respects ConnectTimeout setting" {
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
 
     # Check that SSH calls use ConnectTimeout
-    grep -q "ConnectTimeout" "$PISYNC_SCRIPT"
+    grep -q "ConnectTimeout" "$RPI_SYNC_SCRIPT"
     [ "$?" -eq 0 ]
 }
 
 @test "SSH strict host key: logs fingerprint for audit" {
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
 
     # setup_keys should log host key fingerprint
-    grep -q "fingerprint" "$PISYNC_SCRIPT"
+    grep -q "fingerprint" "$RPI_SYNC_SCRIPT"
     [ "$?" -eq 0 ]
 }
 
 # ── Rsync Connection Tests ───────────────────────────────────────────────────
 
 @test "rsync args: includes required flags" {
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
 
     # Build args for a test project
     local args
@@ -91,7 +91,7 @@ teardown() {
 }
 
 @test "rsync args: includes default excludes" {
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
 
     local args
     args=$(build_rsync_args "testproj" "")
@@ -104,7 +104,7 @@ teardown() {
 }
 
 @test "rsync args: includes custom exclude file when provided" {
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
 
     # Create custom exclude file
     local exclude_file="$TEST_DIR/excludes.txt"
@@ -118,7 +118,7 @@ teardown() {
 }
 
 @test "rsync args: skips exclude file if not provided" {
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
 
     local args
     args=$(build_rsync_args "testproj" "")
@@ -130,7 +130,7 @@ teardown() {
 # ── Error Handling Tests ────────────────────────────────────────────────────
 
 @test "error function: logs to file and stdout" {
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     load_config
 
     run error "Test error message"
@@ -139,63 +139,63 @@ teardown() {
     [[ "$output" == *"Test error message"* ]]
 
     # Should also log to file
-    [ -f "$PISYNC_LOG" ]
-    grep -q "ERROR: Test error message" "$PISYNC_LOG"
+    [ -f "$RPI_SYNC_LOG" ]
+    grep -q "ERROR: Test error message" "$RPI_SYNC_LOG"
 }
 
 @test "warn function: logs to file and stdout" {
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     load_config
 
     run warn "Test warning"
     [ "$status" -eq 0 ]
     [[ "$output" == *"Test warning"* ]]
 
-    grep -q "WARN: Test warning" "$PISYNC_LOG"
+    grep -q "WARN: Test warning" "$RPI_SYNC_LOG"
 }
 
 @test "info function: logs to file and stdout" {
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     load_config
 
     run info "Test info"
     [ "$status" -eq 0 ]
     [[ "$output" == *"Test info"* ]]
 
-    grep -q "INFO: Test info" "$PISYNC_LOG"
+    grep -q "INFO: Test info" "$RPI_SYNC_LOG"
 }
 
 # ── Logging Tests ────────────────────────────────────────────────────────────
 
 @test "log function: appends timestamped entries" {
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     load_config
 
     log "Test log entry"
 
-    [ -f "$PISYNC_LOG" ]
-    grep -q "Test log entry" "$PISYNC_LOG"
+    [ -f "$RPI_SYNC_LOG" ]
+    grep -q "Test log entry" "$RPI_SYNC_LOG"
 }
 
-@test "log file: created in PISYNC_HOME" {
-    source "$PISYNC_SCRIPT"
+@test "log file: created in RPI_SYNC_HOME" {
+    source "$RPI_SYNC_SCRIPT"
     load_config
 
     # Log should exist after any logging operation
     log "init"
 
-    [ -f "$PISYNC_LOG" ]
-    [[ "$PISYNC_LOG" == *"$PISYNC_HOME"* ]]
+    [ -f "$RPI_SYNC_LOG" ]
+    [[ "$RPI_SYNC_LOG" == *"$RPI_SYNC_HOME"* ]]
 }
 
 # ── Lock File Tests ──────────────────────────────────────────────────────────
 
 @test "lock file: prevents concurrent writes" {
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     load_config
 
     # Create lock file with fake PID
-    echo "99999" > "$PISYNC_LOCK"
+    echo "99999" > "$RPI_SYNC_LOCK"
 
     # acquire_lock should fail (PID 99999 doesn't exist, so stale lock detection)
     # Actually, stale detection should clean it up
@@ -206,18 +206,18 @@ teardown() {
 }
 
 @test "lock file: detects stale locks" {
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     load_config
 
     # Create stale lock with non-existent PID
-    echo "99999" > "$PISYNC_LOCK"
+    echo "99999" > "$RPI_SYNC_LOCK"
 
     # acquire_lock should detect stale and clean it
     acquire_lock
 
     # New lock should have our PID
     local pid
-    pid=$(cat "$PISYNC_LOCK")
+    pid=$(cat "$RPI_SYNC_LOCK")
     [ "$pid" -eq $$ ]
 
     release_lock

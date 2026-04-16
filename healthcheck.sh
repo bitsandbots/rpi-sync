@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# PiSync Health Check
+# rpi-sync Health Check
 # Verifies installation, connectivity, and configuration on this node.
 # ============================================================================
 
@@ -14,8 +14,8 @@ BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
 
-PISYNC_HOME="${PISYNC_HOME:-$HOME/.pisync}"
-PISYNC_CONF="$PISYNC_HOME/pisync.conf"
+RPI_SYNC_HOME="${RPI_SYNC_HOME:-$HOME/.rpi-sync}"
+RPI_SYNC_CONF="$RPI_SYNC_HOME/rpi-sync.conf"
 PASS=0
 FAIL=0
 WARN=0
@@ -45,7 +45,7 @@ check_warn() {
 }
 
 echo ""
-echo -e "  ${BOLD}PiSync Health Check${NC}"
+echo -e "  ${BOLD}rpi-sync Health Check${NC}"
 echo -e "  ${DIM}───────────────────────────────────────${NC}"
 echo ""
 
@@ -61,15 +61,15 @@ echo ""
 
 # ── Configuration ──────────────────────────────────────────────────────────
 echo -e "  ${BOLD}Configuration${NC}"
-check "PiSync home exists" test -d "$PISYNC_HOME"
-check "Config file exists" test -f "$PISYNC_CONF"
+check "rpi-sync home exists" test -d "$RPI_SYNC_HOME"
+check "Config file exists" test -f "$RPI_SYNC_CONF"
 
-if [ -f "$PISYNC_CONF" ]; then
-    check "At least one project defined" grep -q '^PROJECT_' "$PISYNC_CONF"
-    check "At least one node defined" grep -q '^NODE_' "$PISYNC_CONF"
+if [ -f "$RPI_SYNC_CONF" ]; then
+    check "At least one project defined" grep -q '^PROJECT_' "$RPI_SYNC_CONF"
+    check "At least one node defined" grep -q '^NODE_' "$RPI_SYNC_CONF"
 
     # Check project paths exist
-    grep '^PROJECT_' "$PISYNC_CONF" 2>/dev/null | while IFS='=' read -r key value; do
+    grep '^PROJECT_' "$RPI_SYNC_CONF" 2>/dev/null | while IFS='=' read -r key value; do
         local clean="${value//\"/}"
         local name path
         IFS='|' read -r name path _ _ <<< "$clean"
@@ -104,7 +104,7 @@ if [ -f "$PISYNC_CONF" ]; then
                 echo -e "  ${GREEN}✓${NC} SSH auth works: ${name}"
                 ((PASS++))
             else
-                echo -e "  ${YELLOW}⚠${NC} SSH auth needs setup: pisync keys ${host}"
+                echo -e "  ${YELLOW}⚠${NC} SSH auth needs setup: rpi-sync keys ${host}"
                 ((WARN++))
             fi
         else
@@ -117,9 +117,9 @@ echo ""
 
 # ── Service ────────────────────────────────────────────────────────────────
 echo -e "  ${BOLD}Service${NC}"
-check_warn "PiSync daemon installed" systemctl is-enabled pisync 2>/dev/null
-check_warn "PiSync daemon running" systemctl is-active pisync 2>/dev/null
-check_warn "Avahi PiSync service registered" test -f /etc/avahi/services/pisync.service
+check_warn "rpi-sync daemon installed" systemctl is-enabled rpi-sync 2>/dev/null
+check_warn "rpi-sync daemon running" systemctl is-active rpi-sync 2>/dev/null
+check_warn "Avahi rpi-sync service registered" test -f /etc/avahi/services/rpi-sync.service
 echo ""
 
 # ── Summary ────────────────────────────────────────────────────────────────

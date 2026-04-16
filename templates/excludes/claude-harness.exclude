@@ -29,5 +29,5 @@ Thumbs.db
 .vscode/
 
 # Node-local override marker
-.pisync-local
+.rpi-sync-local
 local.conf

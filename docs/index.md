@@ -1,4 +1,4 @@
-# PiSync Documentation
+# rpi-sync Documentation
 
 LAN Project Synchronization for Raspberry Pi Networks — CoreConduit Consulting Services
 
@@ -22,23 +22,23 @@ LAN Project Synchronization for Raspberry Pi Networks — CoreConduit Consulting
 sudo ./install.sh
 
 # Initialize this node
-pisync init
+rpi-sync init
 
 # Add a peer
-pisync add-node pi-workshop 192.168.1.101
+rpi-sync add-node pi-workshop 192.168.1.101
 
 # Sync
-pisync sync
-pisync pull claude-harness pi-workshop
-pisync dry-run
+rpi-sync sync
+rpi-sync pull claude-harness pi-workshop
+rpi-sync dry-run
 
 # Watch for changes (foreground)
-pisync watch claude-harness
+rpi-sync watch claude-harness
 
 # Install background daemon
-pisync install-service
+rpi-sync install-service
 
 # Status
-pisync status
-pisync log
+rpi-sync status
+rpi-sync log
 ```

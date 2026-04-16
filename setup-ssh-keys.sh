@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# PiSync SSH Key Setup
+# rpi-sync SSH Key Setup
 # CoreConduit Consulting Services | MIT License
 # ============================================================================
 # Automates SSH key distribution across all configured Pi nodes.
@@ -25,7 +25,7 @@ DIM='\033[2m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-PISYNC_CONF="${PISYNC_CONF:-$HOME/.pisync/pisync.conf}"
+RPI_SYNC_CONF="${RPI_SYNC_CONF:-$HOME/.rpi-sync/rpi-sync.conf}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
 SSH_KEY_PUB="${SSH_KEY}.pub"
 SPECIFIC_NODE=""
@@ -69,7 +69,7 @@ done
 
 # ── Banner ────────────────────────────────────────────────────────────────
 echo -e "${BLUE}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║${NC}  ${BOLD}Pi${ORANGE}Sync${NC} ${DIM}SSH Key Setup${NC}                         ${BLUE}║${NC}"
+echo -e "${BLUE}║${NC}  ${BOLD}rpi${ORANGE}Sync${NC} ${DIM}SSH Key Setup${NC}                         ${BLUE}║${NC}"
 echo -e "${BLUE}║${NC}  ${DIM}CoreConduit Consulting Services${NC}              ${BLUE}║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════╝${NC}"
 echo ""
@@ -100,15 +100,15 @@ else
 fi
 
 # ── Check for config file ────────────────────────────────────────────────
-if [ ! -f "$PISYNC_CONF" ]; then
-    echo -e "  ${RED}✗${NC} Config not found: ${PISYNC_CONF}"
+if [ ! -f "$RPI_SYNC_CONF" ]; then
+    echo -e "  ${RED}✗${NC} Config not found: ${RPI_SYNC_CONF}"
     echo ""
-    echo "  Run 'pisync init' first to create a configuration"
+    echo "  Run 'rpi-sync init' first to create a configuration"
     exit 1
 fi
 
 # ── Extract SYNC_USER from config ────────────────────────────────────────
-SYNC_USER=$(grep '^SYNC_USER=' "$PISYNC_CONF" 2>/dev/null | cut -d'"' -f2 || echo "$USER")
+SYNC_USER=$(grep '^SYNC_USER=' "$RPI_SYNC_CONF" 2>/dev/null | cut -d'"' -f2 || echo "$USER")
 echo -e "  ${DIM}Sync user: ${SYNC_USER}${NC}"
 echo ""
 
@@ -141,7 +141,7 @@ parse_nodes() {
 
             NODES["$name"]="${user}|${host}|${port}"
         fi
-    done < "$PISYNC_CONF"
+    done < "$RPI_SYNC_CONF"
 }
 
 parse_nodes
@@ -150,7 +150,7 @@ if [ ${#NODES[@]} -eq 0 ]; then
     echo -e "  ${YELLOW}⚠${NC} No nodes configured"
     echo ""
     echo "  Add nodes with:"
-    echo -e "    ${DIM}pisync add-node <name> <host> [user] [port]${NC}"
+    echo -e "    ${DIM}rpi-sync add-node <name> <host> [user] [port]${NC}"
     exit 0
 fi
 
@@ -185,10 +185,10 @@ if [ "$CHECK_ONLY" = true ]; then
     fi
 fi
 
-# ── Update SSH config for pisync nodes ──────────────────────────────────────
+# ── Update SSH config for rpi-sync nodes ──────────────────────────────────────
 update_ssh_config() {
     local ssh_config="$HOME/.ssh/config"
-    local marker="# --- PiSync nodes (auto-generated) ---"
+    local marker="# --- rpi-sync nodes (auto-generated) ---"
     local hosts=""
 
     # Build host list
@@ -214,7 +214,7 @@ update_ssh_config() {
                 print "    IdentityFile " keyfile
                 print "    IdentitiesOnly yes"
                 print "    BatchMode yes"
-                print "# --- End PiSync ---"
+                print "# --- End rpi-sync ---"
                 skip = 1
                 next
             }
@@ -224,7 +224,7 @@ update_ssh_config() {
         ' "$ssh_config" > "$temp_file"
         mv "$temp_file" "$ssh_config"
         chmod 600 "$ssh_config"
-        echo -e "  ${GREEN}✓${NC} Updated SSH config for pisync nodes"
+        echo -e "  ${GREEN}✓${NC} Updated SSH config for rpi-sync nodes"
     else
         # Append new block
         {
