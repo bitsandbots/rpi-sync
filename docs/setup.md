@@ -1,12 +1,12 @@
-# PiSync — Setup & Usage
+# rpi-sync — Setup & Usage
 
 ## Installation
 
 Run the installer on **every node** in your Pi network:
 
 ```bash
-git clone <your-repo>/pisync.git
-cd pisync
+git clone <your-repo>/rpi-sync.git
+cd rpi-sync
 chmod +x install.sh
 sudo ./install.sh
 ```
@@ -17,7 +17,7 @@ sudo ./install.sh
 sudo ./install.sh                        # Install to /usr/local/bin (default)
 ./install.sh --prefix ~/.local           # Install to ~/.local/bin (no sudo needed)
 ./install.sh --check                     # Verify dependencies only, don't install
-sudo ./install.sh --uninstall            # Remove the pisync binary
+sudo ./install.sh --uninstall            # Remove the rpi-sync binary
 ```
 
 The installer:
@@ -25,12 +25,12 @@ The installer:
 2. Checks `rsync`, `openssh-client/server` (required) and `avahi-utils`, `inotify-tools` (optional).
 3. Installs missing required packages via `apt`.
 4. Enables `sshd` and `avahi-daemon` if not already running.
-5. Copies `pisync` to `$INSTALL_DIR/pisync` and installs exclude templates to `/usr/local/share/pisync/excludes/`.
+5. Copies `rpi-sync` to `$INSTALL_DIR/rpi-sync` and installs exclude templates to `/usr/local/share/rpi-sync/excludes/`.
 6. Verifies the installed binary runs and prints its version.
 
 Verify:
 ```bash
-pisync --version   # PiSync v1.0.0
+rpi-sync --version   # rpi-sync v1.0.0
 bash healthcheck.sh
 ```
 
@@ -39,23 +39,23 @@ bash healthcheck.sh
 ### 1. Initialize
 
 ```bash
-pisync init
+rpi-sync init
 ```
 
-Creates `~/.pisync/pisync.conf` with a pre-configured entry for the `.claude` harness, and a default exclude file at `~/.pisync/excludes/claude-harness.exclude`. Edit the config to uncomment nodes and add projects.
+Creates `~/.rpi-sync/rpi-sync.conf` with a pre-configured entry for the `.claude` harness, and a default exclude file at `~/.rpi-sync/excludes/claude-harness.exclude`. Edit the config to uncomment nodes and add projects.
 
 ### 2. Register peer nodes
 
 ```bash
-pisync add-node pi-workshop 192.168.1.101
-pisync add-node pi-garden   192.168.1.102
+rpi-sync add-node pi-workshop 192.168.1.101
+rpi-sync add-node pi-garden   192.168.1.102
 ```
 
 Each `add-node` prompts to deploy SSH keys immediately. You can also deploy keys separately:
 
 ```bash
-pisync keys 192.168.1.101          # uses SYNC_USER from config
-pisync keys 192.168.1.101 cory     # explicit user
+rpi-sync keys 192.168.1.101          # uses SYNC_USER from config
+rpi-sync keys 192.168.1.101 cory     # explicit user
 ```
 
 > **Note:** `add-node` validates the name, host, user, and port for shell metacharacters before writing to config. Names containing `$`, backticks, `()`, `|`, `&`, or `<>` are rejected.
@@ -65,37 +65,37 @@ pisync keys 192.168.1.101 cory     # explicit user
 The default config includes the `.claude` harness. To add more:
 
 ```bash
-pisync add-project hydromazing /home/pi/projects/hydromazing
-pisync add-project nexus /home/pi/projects/nexus /home/pi/projects/nexus
+rpi-sync add-project hydromazing /home/pi/projects/hydromazing
+rpi-sync add-project nexus /home/pi/projects/nexus /home/pi/projects/nexus
 ```
 
 Optionally create an exclude file:
 ```bash
-cp templates/excludes/hydromazing.exclude ~/.pisync/excludes/hydromazing.exclude
-# edit as needed, then reference it in pisync.conf:
-# PROJECT_02="hydromazing|/home/pi/projects/hydromazing|/home/pi/projects/hydromazing|~/.pisync/excludes/hydromazing.exclude"
+cp templates/excludes/hydromazing.exclude ~/.rpi-sync/excludes/hydromazing.exclude
+# edit as needed, then reference it in rpi-sync.conf:
+# PROJECT_02="hydromazing|/home/pi/projects/hydromazing|/home/pi/projects/hydromazing|~/.rpi-sync/excludes/hydromazing.exclude"
 ```
 
 ### 4. Test with dry-run
 
 ```bash
-pisync dry-run                            # all projects, all nodes
-pisync dry-run claude-harness             # specific project
-pisync dry-run claude-harness pi-workshop # specific project + node
+rpi-sync dry-run                            # all projects, all nodes
+rpi-sync dry-run claude-harness             # specific project
+rpi-sync dry-run claude-harness pi-workshop # specific project + node
 ```
 
 ### 5. Sync
 
 ```bash
-pisync sync                               # all projects → all nodes (push)
-pisync sync claude-harness                # specific project → all nodes
-pisync sync claude-harness pi-workshop    # specific project → specific node
-pisync pull claude-harness pi-workshop    # pull from remote instead
+rpi-sync sync                               # all projects → all nodes (push)
+rpi-sync sync claude-harness                # specific project → all nodes
+rpi-sync sync claude-harness pi-workshop    # specific project → specific node
+rpi-sync pull claude-harness pi-workshop    # pull from remote instead
 ```
 
 ## Configuration reference
 
-All configuration lives in `~/.pisync/pisync.conf`. It is a bash file that is `source`d at runtime — do not add command substitutions or untrusted content.
+All configuration lives in `~/.rpi-sync/rpi-sync.conf`. It is a bash file that is `source`d at runtime — do not add command substitutions or untrusted content.
 
 ### Global settings
 
@@ -114,7 +114,7 @@ CONFLICT_STRATEGY="newest"     # newest | source | manual (for future use)
 
 ```bash
 # Format: name|local_path|remote_path|exclude_file
-PROJECT_01="claude-harness|/home/pi/.claude|/home/pi/.claude|/home/pi/.pisync/excludes/claude-harness.exclude"
+PROJECT_01="claude-harness|/home/pi/.claude|/home/pi/.claude|/home/pi/.rpi-sync/excludes/claude-harness.exclude"
 PROJECT_02="hydromazing|/home/pi/projects/hydromazing|/home/pi/projects/hydromazing|"
 ```
 
@@ -145,18 +145,18 @@ Exclude files use standard rsync filter syntax. Each line is a pattern:
 *.log             # exclude all .log files
 data/             # exclude the data/ directory (trailing slash = dir only)
 *.db              # exclude SQLite databases
-.pisync-local     # always exclude the local-override marker file
+.rpi-sync-local     # always exclude the local-override marker file
 ```
 
 Template exclude files for common CoreConduit projects are in `templates/excludes/`. Copy and customize:
 
 ```bash
-cp templates/excludes/nexus.exclude ~/.pisync/excludes/nexus.exclude
+cp templates/excludes/nexus.exclude ~/.rpi-sync/excludes/nexus.exclude
 ```
 
-### `.pisync-local` marker
+### `.rpi-sync-local` marker
 
-Create a `.pisync-local` file inside any directory to permanently exclude that directory from all syncs (it's in the built-in default excludes). Useful for marking machine-specific state directories.
+Create a `.rpi-sync-local` file inside any directory to permanently exclude that directory from all syncs (it's in the built-in default excludes). Useful for marking machine-specific state directories.
 
 ## Auto-sync modes
 
@@ -165,7 +165,7 @@ Create a `.pisync-local` file inside any directory to permanently exclude that d
 Syncs within 2 seconds of any file change using inotify. Runs in the foreground:
 
 ```bash
-pisync watch claude-harness
+rpi-sync watch claude-harness
 # Press Ctrl+C to stop
 ```
 
@@ -176,63 +176,63 @@ Requires `inotify-tools`: `sudo apt install inotify-tools`
 Polls and syncs all projects on a configurable interval. Managed by systemd:
 
 ```bash
-pisync install-service    # installs and starts the systemd unit
-systemctl status pisync
-systemctl stop pisync
-journalctl -u pisync -f   # follow logs
+rpi-sync install-service    # installs and starts the systemd unit
+systemctl status rpi-sync
+systemctl stop rpi-sync
+journalctl -u rpi-sync -f   # follow logs
 ```
 
-The daemon also registers an Avahi `_pisync._tcp` mDNS service so other nodes can discover this one automatically.
+The daemon also registers an Avahi `_rpi-sync._tcp` mDNS service so other nodes can discover this one automatically.
 
-To change the interval, edit `DAEMON_INTERVAL` in `pisync.conf` and restart the service:
+To change the interval, edit `DAEMON_INTERVAL` in `rpi-sync.conf` and restart the service:
 ```bash
-systemctl restart pisync
+systemctl restart rpi-sync
 ```
 
 ## Status and diagnostics
 
 ```bash
-pisync status                           # node connectivity + last sync results
-pisync discover                         # scan LAN for PiSync nodes
-pisync conflicts claude-harness pi-workshop  # compare file hashes
-pisync log                              # last 50 log lines
-pisync log 200                          # last 200 log lines
+rpi-sync status                           # node connectivity + last sync results
+rpi-sync discover                         # scan LAN for rpi-sync nodes
+rpi-sync conflicts claude-harness pi-workshop  # compare file hashes
+rpi-sync log                              # last 50 log lines
+rpi-sync log 200                          # last 200 log lines
 ```
 
-Log file location: `~/.pisync/pisync.log`
+Log file location: `~/.rpi-sync/rpi-sync.log`
 
 ## Troubleshooting
 
 **"Permission denied" on sync**
 ```bash
-pisync keys <host>     # (re)deploy SSH key
+rpi-sync keys <host>     # (re)deploy SSH key
 ```
 
-**"No PiSync nodes discovered"**
+**"No rpi-sync nodes discovered"**
 ```bash
-avahi-browse -t -r _pisync._tcp        # check Avahi directly
-pisync add-node <name> <ip>            # add node manually
+avahi-browse -t -r _rpi-sync._tcp        # check Avahi directly
+rpi-sync add-node <name> <ip>            # add node manually
 ```
 
 **"Project not found" in watch mode**
-Confirm the project name in `pisync.conf` matches exactly what you pass to `pisync watch`.
+Confirm the project name in `rpi-sync.conf` matches exactly what you pass to `rpi-sync watch`.
 
 **Sync slow on first run**
 Expected — rsync transfers everything on first sync. Subsequent syncs only transfer deltas (checksum-based).
 
 **Conflicts detected**
 ```bash
-pisync conflicts <project> <node>      # see which files differ
+rpi-sync conflicts <project> <node>      # see which files differ
 # resolve manually, then:
-pisync push <project> <node>           # establish this node as source of truth
+rpi-sync push <project> <node>           # establish this node as source of truth
 # or:
-pisync pull <project> <node>           # take remote as source of truth
+rpi-sync pull <project> <node>           # take remote as source of truth
 ```
 
 **Daemon not starting**
 ```bash
 bash healthcheck.sh                    # full diagnostic
-journalctl -u pisync --no-pager -n 50  # systemd logs
+journalctl -u rpi-sync --no-pager -n 50  # systemd logs
 ```
 
 ## Releasing
@@ -250,15 +250,15 @@ Use `release.sh` to build a versioned distribution package.
 `release.sh` will:
 1. Validate semver format and that the new version is greater than current.
 2. Verify the git working tree is clean.
-3. Bump `PISYNC_VERSION` in the `pisync` script and verify syntax.
-4. Build `dist/pisync-v1.1.0.tar.gz` containing `pisync`, `install.sh`, `healthcheck.sh`, `README.md`, `LICENSE`, `templates/`, and `docs/`.
-5. Generate `dist/pisync-v1.1.0.tar.gz.sha256`.
+3. Bump `RPI_SYNC_VERSION` in the `rpi-sync` script and verify syntax.
+4. Build `dist/rpi-sync-v1.1.0.tar.gz` containing `rpi-sync`, `install.sh`, `healthcheck.sh`, `README.md`, `LICENSE`, `templates/`, and `docs/`.
+5. Generate `dist/rpi-sync-v1.1.0.tar.gz.sha256`.
 6. Commit the version bump and create an annotated git tag `v1.1.0`.
 
 After running:
 ```bash
 git push && git push --tags
-# Attach dist/pisync-v1.1.0.tar.gz to the GitHub release for tag v1.1.0
+# Attach dist/rpi-sync-v1.1.0.tar.gz to the GitHub release for tag v1.1.0
 ```
 
 The `dist/` directory is gitignored — release artifacts are not committed to the repo.

@@ -218,7 +218,7 @@ update_ssh_config() {
                 skip = 1
                 next
             }
-            skip && /^# --- End PiSync/ { skip = 0; next }
+            skip && /^# --- End rpi-sync/ { skip = 0; next }
             skip { next }
             { print }
         ' "$ssh_config" > "$temp_file"
@@ -234,10 +234,10 @@ update_ssh_config() {
             echo "    IdentityFile $SSH_KEY"
             echo "    IdentitiesOnly yes"
             echo "    BatchMode yes"
-            echo "# --- End PiSync ---"
+            echo "# --- End rpi-sync ---"
         } >> "$ssh_config"
         chmod 600 "$ssh_config"
-        echo -e "  ${GREEN}✓${NC} Added SSH config for pisync nodes"
+        echo -e "  ${GREEN}✓${NC} Added SSH config for rpi-sync nodes"
     fi
 }
 
@@ -340,6 +340,6 @@ fi
 echo -e "  ${GREEN}✓${NC} All nodes configured for key-based SSH access"
 echo ""
 echo -e "  ${BOLD}Next steps:${NC}"
-echo -e "    ${DIM}pisync status${NC}    Check node connectivity"
-echo -e "    ${DIM}pisync deploy${NC}    Sync projects to all nodes"
+echo -e "    ${DIM}rpi-sync status${NC}    Check node connectivity"
+echo -e "    ${DIM}rpi-sync deploy${NC}    Sync projects to all nodes"
 echo ""

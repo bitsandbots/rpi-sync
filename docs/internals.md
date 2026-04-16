@@ -1,28 +1,28 @@
-# PiSync — Internals
+# rpi-sync — Internals
 
-Module-level documentation for contributors or anyone extending PiSync.
+Module-level documentation for contributors or anyone extending rpi-sync.
 
 ---
 
 ## Global variables
 
-Defined at the top of `pisync` and available throughout:
+Defined at the top of `rpi-sync` and available throughout:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PISYNC_VERSION` | `"1.0.0"` | Semver string |
-| `PISYNC_HOME` | `~/.pisync` | Runtime directory; override with env var |
-| `PISYNC_CONF` | `$PISYNC_HOME/pisync.conf` | Config file path |
-| `PISYNC_LOG` | `$PISYNC_HOME/pisync.log` | Append-only operation log |
-| `PISYNC_LOCK` | `$PISYNC_HOME/pisync.lock` | PID lock file |
-| `PISYNC_STATE` | `$PISYNC_HOME/state` | Directory of per-sync state files |
+| `RPI_SYNC_VERSION` | `"1.0.0"` | Semver string |
+| `RPI_SYNC_HOME` | `~/.rpi-sync` | Runtime directory; override with env var |
+| `RPI_SYNC_CONF` | `$RPI_SYNC_HOME/rpi-sync.conf` | Config file path |
+| `RPI_SYNC_LOG` | `$RPI_SYNC_HOME/rpi-sync.log` | Append-only operation log |
+| `RPI_SYNC_LOCK` | `$RPI_SYNC_HOME/rpi-sync.lock` | PID lock file |
+| `RPI_SYNC_STATE` | `$RPI_SYNC_HOME/state` | Directory of per-sync state files |
 
 ---
 
 ## Output / logging functions
 
 ```bash
-log()   "$*"    # Writes to PISYNC_LOG with ISO timestamp — no stdout
+log()   "$*"    # Writes to RPI_SYNC_LOG with ISO timestamp — no stdout
 info()  "✓ $*"  # Green — success or completion; also logs
 warn()  "⚠ $*"  # Yellow — non-fatal issue; also logs
 error() "✗ $*"  # Red — error; also logs
@@ -39,7 +39,7 @@ All user-facing output goes through these functions. Never `echo` directly in co
 init_dirs()
 ```
 
-Creates `$PISYNC_HOME` and `$PISYNC_STATE` if they don't exist. Touches `$PISYNC_LOG`. Called unconditionally at the start of `main()` before command dispatch, so it is safe to call on every invocation.
+Creates `$RPI_SYNC_HOME` and `$RPI_SYNC_STATE` if they don't exist. Touches `$RPI_SYNC_LOG`. Called unconditionally at the start of `main()` before command dispatch, so it is safe to call on every invocation.
 
 ---
 
@@ -49,9 +49,9 @@ Creates `$PISYNC_HOME` and `$PISYNC_STATE` if they don't exist. Touches `$PISYNC
 load_config()
 ```
 
-Sources `$PISYNC_CONF` into the current shell. Exits with error if the file doesn't exist. Must be called before any function that reads config variables (`SYNC_USER`, `DEFAULT_DIRECTION`, etc.).
+Sources `$RPI_SYNC_CONF` into the current shell. Exits with error if the file doesn't exist. Must be called before any function that reads config variables (`SYNC_USER`, `DEFAULT_DIRECTION`, etc.).
 
-**Side effect:** exports all variables defined in `pisync.conf` into the current process.
+**Side effect:** exports all variables defined in `rpi-sync.conf` into the current process.
 
 ---
 
@@ -62,7 +62,7 @@ get_projects()   # outputs PROJECT_* values, one per line
 get_nodes()      # outputs NODE_* values, one per line
 ```
 
-Parse `$PISYNC_CONF` with `grep '^PROJECT_'` / `grep '^NODE_'` and strip surrounding quotes. Output is pipe-delimited:
+Parse `$RPI_SYNC_CONF` with `grep '^PROJECT_'` / `grep '^NODE_'` and strip surrounding quotes. Output is pipe-delimited:
 
 ```
 name|local_path|remote_path|exclude_file
@@ -89,7 +89,7 @@ done
 
 ```bash
 acquire_lock()   # returns 0 on success, 1 if another process holds the lock
-release_lock()   # removes $PISYNC_LOCK
+release_lock()   # removes $RPI_SYNC_LOCK
 ```
 
 `acquire_lock` checks whether the PID in the lock file is still alive with `kill -0`. Stale locks (process gone) are silently removed and the lock re-acquired. In daemon mode, `release_lock` is called between each sleep interval so manual syncs can proceed without waiting.
@@ -104,7 +104,7 @@ Long-running commands should `trap 'release_lock; exit 0' SIGTERM SIGINT`.
 validate_config_value "name" "$name"
 ```
 
-Rejects values containing shell metacharacters (`$`, `` ` ``, `(`, `)`, `;`, `|`, `&`, `<`, `>`) that could inject arbitrary code when the config file is sourced. Calls `exit 1` on failure. Must be called before any user-supplied value is appended to `$PISYNC_CONF`.
+Rejects values containing shell metacharacters (`$`, `` ` ``, `(`, `)`, `;`, `|`, `&`, `<`, `>`) that could inject arbitrary code when the config file is sourced. Calls `exit 1` on failure. Must be called before any user-supplied value is appended to `$RPI_SYNC_CONF`.
 
 ---
 
@@ -115,17 +115,17 @@ setup_keys "192.168.1.101" "pi"
 ```
 
 1. Generates `~/.ssh/id_ed25519` if no key exists.
-2. Logs the remote host key fingerprint (via `ssh-keyscan | ssh-keygen -lf`) to `$PISYNC_LOG`.
+2. Logs the remote host key fingerprint (via `ssh-keyscan | ssh-keygen -lf`) to `$RPI_SYNC_LOG`.
 3. Calls `ssh-copy-id -o StrictHostKeyChecking=no` to deploy the key.
 
-The fingerprint log is the only audit trail for host key changes — review `pisync log` after adding new nodes.
+The fingerprint log is the only audit trail for host key changes — review `rpi-sync log` after adding new nodes.
 
 ---
 
 ## `build_rsync_args(project_name, exclude_file)`
 
 ```bash
-rsync_args=$(build_rsync_args "claude-harness" "/home/pi/.pisync/excludes/claude-harness.exclude")
+rsync_args=$(build_rsync_args "claude-harness" "/home/pi/.rpi-sync/excludes/claude-harness.exclude")
 ```
 
 Returns a space-separated string of rsync flags. Appends `--exclude-from` only if `$exclude_file` is non-empty and the file exists. Default excludes (`.git/objects`, `node_modules`, etc.) are always appended last.
@@ -138,11 +138,11 @@ Returns a space-separated string of rsync flags. Appends `--exclude-from` only i
 
 ```bash
 sync_project_to_node "claude-harness" "/home/pi/.claude" "/home/pi/.claude" \
-    "/home/pi/.pisync/excludes/claude-harness.exclude" \
+    "/home/pi/.rpi-sync/excludes/claude-harness.exclude" \
     "192.168.1.101" "pi" "22" "push"
 ```
 
-Core sync function. Constructs `src` and `dst` based on `direction` (`push` | `pull`), then calls rsync. On success or failure, writes a state file to `$PISYNC_STATE/${name}_${host}.last`.
+Core sync function. Constructs `src` and `dst` based on `direction` (`push` | `pull`), then calls rsync. On success or failure, writes a state file to `$RPI_SYNC_STATE/${name}_${host}.last`.
 
 Returns 1 if `$local_path` doesn't exist or if rsync exits non-zero.
 
@@ -190,7 +190,7 @@ Events watched: `modify`, `create`, `delete`, `move`. Excludes: `.git/objects`, 
 
 ## `discover_nodes()`
 
-Three-phase discovery (see [architecture.md](architecture.md#node-discovery-fallback-chain)). The Avahi phase spawns `avahi-browse -t -r _pisync._tcp` and parses `hostname` lines. The subnet scan phase uses a background subshell per host (`timeout 1 bash -c "echo >/dev/tcp/$target/22"`) and a foreground spinner. Results are printed live; no state is written to disk.
+Three-phase discovery (see [architecture.md](architecture.md#node-discovery-fallback-chain)). The Avahi phase spawns `avahi-browse -t -r _rpi-sync._tcp` and parses `hostname` lines. The subnet scan phase uses a background subshell per host (`timeout 1 bash -c "echo >/dev/tcp/$target/22"`) and a foreground spinner. Results are printed live; no state is written to disk.
 
 ---
 

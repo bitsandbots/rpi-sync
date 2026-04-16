@@ -1,4 +1,4 @@
-# PiSync — Architecture
+# rpi-sync — Architecture
 
 ## High-level topology
 
@@ -7,7 +7,7 @@
 │  pi-primary         │◄──────────────────►│  pi-workshop        │
 │  ├─ .claude/        │                    │  ├─ .claude/        │
 │  ├─ hydromazing/    │     Avahi/mDNS     │  ├─ hydromazing/    │
-│  └─ ~/.pisync/      │◄──── discovery ───►│  └─ ~/.pisync/      │
+│  └─ ~/.rpi-sync/    │◄──── discovery ───►│  └─ ~/.rpi-sync/    │
 └─────────────────────┘                    └─────────────────────┘
          ▲                                          ▲
          │            rsync/SSH                     │
@@ -16,23 +16,23 @@
                ┌────────┴────────┐
                │  pi-garden      │
                │  ├─ .claude/    │
-               │  └─ ~/.pisync/  │
+               │  └─ ~/.rpi-sync/│
                └─────────────────┘
 ```
 
 - **No central server** — any node can push or pull from any other.
 - **SSH transport** — encrypted, authenticated, uses your existing keys.
-- **Avahi/mDNS** — nodes advertise `_pisync._tcp` for automatic LAN discovery.
+- **Avahi/mDNS** — nodes advertise `_rpi-sync._tcp` for automatic LAN discovery.
 
 ## Runtime directory layout
 
-All PiSync state lives in `~/.pisync/` on each node:
+All rpi-sync state lives in `~/.rpi-sync/` on each node:
 
 ```
-~/.pisync/
-├── pisync.conf          # Main configuration (sourced as bash)
-├── pisync.log           # Append-only operation log
-├── pisync.lock          # PID lock file (present only while running)
+~/.rpi-sync/
+├── rpi-sync.conf          # Main configuration (sourced as bash)
+├── rpi-sync.log           # Append-only operation log
+├── rpi-sync.lock          # PID lock file (present only while running)
 ├── state/
 │   ├── claude-harness_pi-workshop.last   # Last sync result per project+node
 │   └── hydromazing_pi-garden.last
@@ -54,7 +54,7 @@ Fields: ISO timestamp | direction | duration | result (`success` or `failed`)
 
 ## Code structure
 
-PiSync is a **single bash script** (`pisync`, ~820 lines). All logic lives in one file.
+rpi-sync is a **single bash script** (`rpi-sync`, ~820 lines). All logic lives in one file.
 
 ### Function groups
 
@@ -74,12 +74,12 @@ PiSync is a **single bash script** (`pisync`, ~820 lines). All logic lives in on
 ## Data flow: push sync
 
 ```
-pisync sync claude-harness pi-workshop
+rpi-sync sync claude-harness pi-workshop
         │
         ▼
 main() → sync_project("claude-harness", "push", "pi-workshop")
         │
-        ├─ load_config()          reads ~/.pisync/pisync.conf
+        ├─ load_config()          reads ~/.rpi-sync/rpi-sync.conf
         │
         ├─ get_projects()         greps PROJECT_* lines → pipe-delimited fields
         │
@@ -93,13 +93,13 @@ main() → sync_project("claude-harness", "push", "pi-workshop")
                 │         -e "ssh -p 22 -o BatchMode=yes" \
                 │         /local/path/ user@host:/remote/path/
                 │
-                └─ write state file: ~/.pisync/state/claude-harness_pi-workshop.last
+                └─ write state file: ~/.rpi-sync/state/claude-harness_pi-workshop.last
 ```
 
 ## Data flow: watch mode
 
 ```
-pisync watch claude-harness
+rpi-sync watch claude-harness
         │
         ▼
 main() → watch_and_sync("claude-harness", "/home/pi/.claude")
@@ -119,13 +119,13 @@ The 2-second debounce prevents a burst of file saves (e.g. editor write) from tr
 ```
 discover_nodes()
     │
-    ├─ 1. avahi-browse -t -r _pisync._tcp
-    │       Finds nodes advertising the _pisync._tcp mDNS service.
+    ├─ 1. avahi-browse -t -r _rpi-sync._tcp
+    │       Finds nodes advertising the _rpi-sync._tcp mDNS service.
     │       Fast, zero-config, preferred.
     │
     ├─ 2. TCP scan of /24 subnet on port 22
     │       SSH-connects to each reachable host, checks for
-    │       ~/.pisync/pisync.conf presence. Slow (~30s for /24).
+    │       ~/.rpi-sync/rpi-sync.conf presence. Slow (~30s for /24).
     │
     └─ 3. Connectivity check of configured NODE_* entries
             Shows online/offline status for already-known nodes.
@@ -133,18 +133,18 @@ discover_nodes()
 
 ## Locking
 
-The lock file at `~/.pisync/pisync.lock` contains the current PID. On `acquire_lock`:
+The lock file at `~/.rpi-sync/rpi-sync.lock` contains the current PID. On `acquire_lock`:
 
 1. If lock file absent → write PID, proceed.
 2. If lock file present → check if PID is still alive (`kill -0`).
    - Alive → error and return 1.
    - Dead → remove stale lock, write new PID, proceed.
 
-The daemon releases the lock between interval sleeps so manual `pisync sync` commands can run concurrently with the daemon's sleep period.
+The daemon releases the lock between interval sleeps so manual `rpi-sync sync` commands can run concurrently with the daemon's sleep period.
 
 ## Security model
 
 - All transfers use SSH with `BatchMode=yes` — no interactive prompts.
-- Node/project names and paths are validated against shell metacharacters (`$`, `` ` ``, `()`, `|`, `&`, `<>`) before being written to `pisync.conf`, which is `source`d by bash.
+- Node/project names and paths are validated against shell metacharacters (`$`, `` ` ``, `()`, `|`, `&`, `<>`) before being written to `rpi-sync.conf`, which is `source`d by bash.
 - Remote paths in SSH commands are escaped with `printf '%q'` before interpolation.
-- SSH key deployment uses `StrictHostKeyChecking=no` (TOFU) and logs the host key fingerprint to `pisync.log` for auditability.
+- SSH key deployment uses `StrictHostKeyChecking=no` (TOFU) and logs the host key fingerprint to `rpi-sync.log` for auditability.

@@ -44,7 +44,7 @@ create_mock_node() {
     local user="${3:-pi}"
     local port="${4:-22}"
 
-    echo "NODE_${name}=\"${name}|${host}|${user}|${port}\"" >> "$PISYNC_CONF"
+    echo "NODE_${name}=\"${name}|${host}|${user}|${port}\"" >> "$RPI_SYNC_CONF"
 }
 
 # Create a mock project config entry
@@ -54,7 +54,7 @@ create_mock_project_config() {
     local remote_path="${3:-/home/pi/projects/$name}"
     local exclude_file="${4:-}"
 
-    echo "PROJECT_${name}=\"${name}|${local_path}|${remote_path}|${exclude_file}\"" >> "$PISYNC_CONF"
+    echo "PROJECT_${name}=\"${name}|${local_path}|${remote_path}|${exclude_file}\"" >> "$RPI_SYNC_CONF"
 }
 
 # ── Mock Commands ───────────────────────────────────────────────────────────
@@ -134,9 +134,9 @@ mock_avahi_browse() {
     cat > "$TEST_DIR/mock_avahi-browse.sh" << 'EOF'
 #!/bin/bash
 # Mock avahi-browse output
-if [[ "$*" == *"-t"* && "$*" == *"_pisync._tcp"* ]]; then
-    echo "=; _pisync._tcp; local; hostname = [mock-pi-1.local]"
-    echo "=; _pisync._tcp; local; hostname = [mock-pi-2.local]"
+if [[ "$*" == *"-t"* && "$*" == *"_rpi-sync._tcp"* ]]; then
+    echo "=; _rpi-sync._tcp; local; hostname = [mock-pi-1.local]"
+    echo "=; _rpi-sync._tcp; local; hostname = [mock-pi-2.local]"
 fi
 exit 0
 EOF
@@ -183,7 +183,7 @@ assert_state_file_exists() {
     [ -f "$RPI_SYNC_STATE/${project}_${host}.last" ]
 }
 
-# ── Run pisync command in test environment ────────────────────────────────
+# ── Run rpi-sync command in test environment ────────────────────────────────
 
 # Source rpi-sync for testing (sets RPI_SYNC_TESTING to prevent main() execution)
 source_rpi_sync() {

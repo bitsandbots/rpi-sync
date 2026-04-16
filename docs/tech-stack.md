@@ -1,4 +1,4 @@
-# PiSync — Tech Stack
+# rpi-sync — Tech Stack
 
 ## Runtime dependencies
 
@@ -9,7 +9,7 @@ All required packages are installed automatically by `install.sh` on Debian/Ubun
 | `rsync` | `rsync` | Delta file transfer engine | Yes |
 | `ssh` / `sshd` | `openssh-client` + `openssh-server` | Encrypted transport, authentication | Yes |
 | `avahi-browse` | `avahi-utils` | mDNS/Zeroconf LAN node discovery | Optional — falls back to subnet scan |
-| `inotifywait` | `inotify-tools` | Filesystem event watch for auto-sync | Optional — required for `pisync watch` |
+| `inotifywait` | `inotify-tools` | Filesystem event watch for auto-sync | Optional — required for `rpi-sync watch` |
 
 ## System requirements
 
@@ -18,21 +18,21 @@ All required packages are installed automatically by `install.sh` on Debian/Ubun
 | OS | Debian 11 / Raspberry Pi OS Bullseye | Any Debian/Ubuntu derivative works |
 | Bash | 4.0+ | Uses `[[ ]]`, `<()` process substitution, arrays |
 | Python | Not required | Pure bash |
-| Disk | Negligible for PiSync itself | Varies by projects being synced |
+| Disk | Negligible for rpi-sync itself | Varies by projects being synced |
 | Network | LAN connectivity between nodes | SSH port (default 22) must be reachable |
 
 ## Build / packaging
 
-None. PiSync is a single bash script. `install.sh` copies it to `/usr/local/bin/pisync` and sets the executable bit. No compilation, no package manager, no virtualenv.
+None. rpi-sync is a single bash script. `install.sh` copies it to `/usr/local/bin/rpi-sync` and sets the executable bit. No compilation, no package manager, no virtualenv.
 
 ## Systemd integration
 
-`pisync install-service` writes two files:
+`rpi-sync install-service` writes two files:
 
 | File | Purpose |
 |------|---------|
-| `/etc/systemd/system/pisync.service` | Service unit — runs `pisync daemon` as the installing user |
-| `/etc/avahi/services/pisync.service` | Avahi XML descriptor — advertises `_pisync._tcp` on port 22 |
+| `/etc/systemd/system/rpi-sync.service` | Service unit — runs `rpi-sync daemon` as the installing user |
+| `/etc/avahi/services/rpi-sync.service` | Avahi XML descriptor — advertises `_rpi-sync._tcp` on port 22 |
 
 The service unit requires `network-online.target` and optionally `avahi-daemon.service`.
 

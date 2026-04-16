@@ -83,11 +83,11 @@ echo -e "  ${BOLD}Network${NC}"
 local_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
 echo -e "  ${DIM}  This node: $(hostname) (${local_ip})${NC}"
 
-if [ -f "$PISYNC_CONF" ]; then
+if [ -f "$RPI_SYNC_CONF" ]; then
     # shellcheck source=/dev/null
-    source "$PISYNC_CONF"
+    source "$RPI_SYNC_CONF"
 
-    grep '^NODE_' "$PISYNC_CONF" 2>/dev/null | while IFS='=' read -r key value; do
+    grep '^NODE_' "$RPI_SYNC_CONF" 2>/dev/null | while IFS='=' read -r key value; do
         local clean="${value//\"/}"
         local name host user port
         IFS='|' read -r name host user port <<< "$clean"

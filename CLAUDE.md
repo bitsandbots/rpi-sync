@@ -68,7 +68,7 @@ bash rpi-sync keys <host> [user] [port]  # Deploy keys to single node
 | Locking | `~/.rpi-sync/rpi-sync.lock` — PID file, stale-lock detection on acquire |
 | Sync | `sync_project_to_node()` → `rsync -azP --checksum --delete` over SSH |
 | Watch | `inotifywait -m -r` with 2s debounce via background subshell + `kill $debounce_pid` |
-| Discovery | Avahi/mDNS (`_pisync._tcp`) → subnet TCP scan → configured nodes check |
+| Discovery | Avahi/mDNS (`_rpi-sync._tcp`) → subnet TCP scan → configured nodes check |
 | Daemon | `cmd_daemon()` loop with `sleep $DAEMON_INTERVAL`; systemd unit written by `cmd_install_service()` |
 
 **Config format** (parsed with `grep '^PROJECT_'` / `grep '^NODE_'`, not `source`):

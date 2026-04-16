@@ -193,7 +193,7 @@ Example output:
 ### `rpi-sync discover`
 
 Scans the LAN for rpi-sync nodes using three methods in order:
-1. Avahi/mDNS (`_pisync._tcp`)
+1. Avahi/mDNS (`_rpi-sync._tcp`)
 2. TCP port-22 scan of the local `/24` subnet
 3. Connectivity check of all configured `NODE_*` entries
 

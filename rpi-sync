@@ -107,7 +107,7 @@ discover_nodes() {
     # Method 1: Avahi/mDNS (preferred)
     if command -v avahi-browse &>/dev/null; then
         step "Using Avahi/mDNS discovery..."
-        avahi-browse -t -r _pisync._tcp 2>/dev/null | while read -r line; do
+        avahi-browse -t -r _rpi-sync._tcp 2>/dev/null | while read -r line; do
             if echo "$line" | grep -q "hostname"; then
                 local host
                 host=$(echo "$line" | awk '{print $NF}' | sed 's/\[//;s/\]//')
@@ -657,7 +657,7 @@ UNIT
 <service-group>
   <name replace-wildcards="yes">rpi-sync on %h</name>
   <service>
-    <type>_pisync._tcp</type>
+    <type>_rpi-sync._tcp</type>
     <port>22</port>
     <txt-record>version=${RPI_SYNC_VERSION}</txt-record>
     <txt-record>user=${USER}</txt-record>

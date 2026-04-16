@@ -6,7 +6,7 @@ load 'helpers'
 setup() {
     setup_test_env
     # Path to rpi-sync script
-    PISYNC_SCRIPT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/rpi-sync"
+    RPI_SYNC_SCRIPT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/rpi-sync"
     export RPI_SYNC_TESTING=1
     export RPI_SYNC_HOME="$RPI_SYNC_DIR"
 }
@@ -20,7 +20,7 @@ teardown() {
 @test "discover: warns when no nodes found and no config" {
     # No config file = no configured nodes
     # No avahi = fallback scan should find nothing on isolated test env
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     init_dirs
 
     run discover_nodes
@@ -32,8 +32,8 @@ teardown() {
 
 @test "discover: detects offline configured nodes" {
     # Add a node that won't be reachable
-    source "$PISYNC_SCRIPT"
-    echo 'NODE_unreachable="unreachable|192.168.99.99|pi|22"' >> "$PISYNC_CONF"
+    source "$RPI_SYNC_SCRIPT"
+    echo 'NODE_unreachable="unreachable|192.168.99.99|pi|22"' >> "$RPI_SYNC_CONF"
     init_dirs
     load_config
 
@@ -44,8 +44,8 @@ teardown() {
 
 @test "discover: detects online configured nodes" {
     # Add localhost as a "node" - should be reachable
-    source "$PISYNC_SCRIPT"
-    echo 'NODE_localhost="localhost|127.0.0.1|'"$USER"'|22"' >> "$PISYNC_CONF"
+    source "$RPI_SYNC_SCRIPT"
+    echo 'NODE_localhost="localhost|127.0.0.1|'"$USER"'|22"' >> "$RPI_SYNC_CONF"
     init_dirs
     load_config
 
@@ -57,12 +57,12 @@ teardown() {
 # ── Node Config Parsing Tests ───────────────────────────────────────────────
 
 @test "get_nodes: parses NODE_ entries correctly" {
-    cat >> "$PISYNC_CONF" << 'EOF'
+    cat >> "$RPI_SYNC_CONF" << 'EOF'
 NODE_alpha="alpha|192.168.1.10|pi|22"
 NODE_beta="beta|192.168.1.11|pi|22"
 EOF
 
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     load_config
 
     local nodes
@@ -73,9 +73,9 @@ EOF
 }
 
 @test "get_nodes: handles missing user/port defaults" {
-    echo 'NODE_minimal="minimal|192.168.1.20"' >> "$PISYNC_CONF"
+    echo 'NODE_minimal="minimal|192.168.1.20"' >> "$RPI_SYNC_CONF"
 
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     load_config
 
     local node
@@ -86,13 +86,13 @@ EOF
 }
 
 @test "get_nodes: skips invalid entries" {
-    cat >> "$PISYNC_CONF" << 'EOF'
+    cat >> "$RPI_SYNC_CONF" << 'EOF'
 NODE_valid="valid|192.168.1.30|pi|22"
 NODE_invalid=""
 NOT_NODE="should|be|ignored"
 EOF
 
-    source "$PISYNC_SCRIPT"
+    source "$RPI_SYNC_SCRIPT"
     load_config
 
     local nodes

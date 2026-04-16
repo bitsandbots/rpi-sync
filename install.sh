@@ -25,7 +25,7 @@ DIM='\033[2m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-PISYNC_SRC="$(cd "$(dirname "$0")" && pwd)"
+RPI_SYNC_SRC="$(cd "$(dirname "$0")" && pwd)"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 CHECK_ONLY=false
 UNINSTALL=false
@@ -49,7 +49,7 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $0 [--prefix PATH] [--check] [--uninstall]"
             echo "  --prefix PATH   Install to PATH/bin instead of /usr/local/bin"
             echo "  --check         Verify dependencies only"
-            echo "  --uninstall     Remove pisync binary"
+            echo "  --uninstall     Remove rpi-sync binary"
             exit 0
             ;;
         *)
@@ -67,7 +67,7 @@ echo -e "${BLUE}╚════════════════════�
 echo ""
 
 # ── Detect version in source ──────────────────────────────────────────────
-SRC_VERSION=$(grep '^RPI_SYNC_VERSION=' "$PISYNC_SRC/rpi-sync" | head -1 | cut -d'"' -f2)
+SRC_VERSION=$(grep '^RPI_SYNC_VERSION=' "$RPI_SYNC_SRC/rpi-sync" | head -1 | cut -d'"' -f2)
 echo -e "  ${DIM}Source version: ${SRC_VERSION}${NC}"
 
 # ── Uninstall mode ────────────────────────────────────────────────────────
@@ -188,16 +188,16 @@ if [ ! -d "$INSTALL_DIR" ]; then
     run_privileged mkdir -p "$INSTALL_DIR"
 fi
 
-run_privileged cp "$PISYNC_SRC/rpi-sync" "$INSTALL_DIR/rpi-sync"
+run_privileged cp "$RPI_SYNC_SRC/rpi-sync" "$INSTALL_DIR/rpi-sync"
 run_privileged chmod +x "$INSTALL_DIR/rpi-sync"
 echo -e "  ${GREEN}✓${NC} rpi-sync installed"
 
 # ── Install exclude templates ─────────────────────────────────────────────
-SHARE_DIR="/usr/local/share/pisync"
-if [ -d "$PISYNC_SRC/templates/excludes" ]; then
+SHARE_DIR="/usr/local/share/rpi-sync"
+if [ -d "$RPI_SYNC_SRC/templates/excludes" ]; then
     echo -e "  ${BLUE}→${NC} Installing exclude templates → ${SHARE_DIR}/excludes/..."
     run_privileged mkdir -p "${SHARE_DIR}/excludes"
-    run_privileged cp "$PISYNC_SRC/templates/excludes/"*.exclude "${SHARE_DIR}/excludes/"
+    run_privileged cp "$RPI_SYNC_SRC/templates/excludes/"*.exclude "${SHARE_DIR}/excludes/"
     echo -e "  ${GREEN}✓${NC} Exclude templates installed"
 fi
 
@@ -217,16 +217,16 @@ if [ -n "$EXISTING_VERSION" ]; then
     echo -e "  ${BOLD}Upgrade complete!${NC} (${EXISTING_VERSION} → ${INSTALLED_VERSION})"
     echo ""
     echo -e "  If the daemon is running, restart it:"
-    echo -e "    ${CYAN}systemctl restart pisync${NC}"
+    echo -e "    ${CYAN}systemctl restart rpi-sync${NC}"
 else
     echo -e "  ${BOLD}Installation complete!${NC}"
     echo ""
     echo -e "  ${BOLD}Quick start:${NC}"
-    echo -e "    ${CYAN}pisync init${NC}                  Set up this node"
-    echo -e "    ${CYAN}pisync add-node pi2 10.0.0.2${NC} Register a peer"
+    echo -e "    ${CYAN}rpi-sync init${NC}                  Set up this node"
+    echo -e "    ${CYAN}rpi-sync add-node pi2 10.0.0.2${NC} Register a peer"
     echo -e "    ${CYAN}./setup-ssh-keys.sh${NC}           Deploy SSH keys to all nodes"
-    echo -e "    ${CYAN}pisync sync${NC}                  Sync all projects"
-    echo -e "    ${CYAN}pisync install-service${NC}        Enable auto-sync daemon"
+    echo -e "    ${CYAN}rpi-sync sync${NC}                  Sync all projects"
+    echo -e "    ${CYAN}rpi-sync install-service${NC}        Enable auto-sync daemon"
     echo ""
     echo -e "  ${DIM}Run this installer on each node in your Pi network.${NC}"
     echo -e "  ${DIM}Exclude templates available in ${SHARE_DIR}/excludes/${NC}"
