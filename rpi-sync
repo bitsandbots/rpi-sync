@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-RPI_SYNC_VERSION="1.0.0"
+RPI_SYNC_VERSION="1.0.1"
 RPI_SYNC_HOME="${RPI_SYNC_HOME:-$HOME/.rpi-sync}"
 RPI_SYNC_CONF="$RPI_SYNC_HOME/rpi-sync.conf"
 RPI_SYNC_LOG="$RPI_SYNC_HOME/rpi-sync.log"
