@@ -1,0 +1,18 @@
+# rpi-sync Scheduled Sync Timer
+# Place in: /etc/systemd/system/rpi-sync.timer
+# Enable: sudo systemctl enable --now rpi-sync.timer
+#
+[Unit]
+Description=rpi-sync Scheduled Sync Timer
+Documentation=man:rpi-sync(1)
+
+[Timer]
+# Sync every 5 minutes
+OnCalendar=*:0/5:00
+# Also run 1 minute after boot
+OnBootSec=1min
+RandomizedDelaySec=30
+Persistent=true
+
+[Install]
+WantedBy=timers.target

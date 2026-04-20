@@ -1,0 +1,26 @@
+# rpi-sync Node Watcher Service
+# Monitors for offline nodes to come online and syncs to them
+# Place in: /etc/systemd/system/rpi-sync-watcher.service
+# Enable: sudo systemctl enable --now rpi-sync-watcher.service
+#
+[Unit]
+Description=rpi-sync Node Availability Watcher
+Documentation=man:rpi-sync(1)
+After=network-online.target avahi-daemon.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=coreconduit
+ExecStart=/home/coreconduit/rpi-sync/node-watcher start
+Environment=WATCH_INTERVAL=60
+Environment=RPI_SYNC_HOME=/home/coreconduit/.rpi-sync
+Restart=on-failure
+RestartSec=30
+
+# Log to journal
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

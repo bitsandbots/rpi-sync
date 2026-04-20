@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+#
+# rpi-sync Node Watcher
+# Monitors offline nodes and triggers sync when they come online
+#
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Configuration
+WATCH_INTERVAL="${WATCH_INTERVAL:-60}"  # Check every 60 seconds
+STATE_DIR="${HOME}/.rpi-sync/watcher-state"
+LOG_FILE="${HOME}/.rpi-sync/watcher.log"
+
+# ── Logging ─────────────────────────────────────────────────────────────────
+log() {
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[${timestamp}] $*" | tee -a "$LOG_FILE"
+}
+
+# ── Node Status ─────────────────────────────────────────────────────────────
+check_node() {
+    local node_name="$1"
+    local node_host="$2"
+    local node_user="$3"
+    local node_port="${4:-22}"
+
+    # Quick ping check
+    if ! ping -c 1 -W 2 "${node_host}" &>/dev/null; then
+        echo "offline"
+        return
+    fi
+
+    # SSH connectivity check
+    if ssh -o BatchMode=yes -o ConnectTimeout=3 -o StrictHostKeyChecking=accept-new \
+        "${node_user}@${node_host}" -p "${node_port}" 'exit 0' &>/dev/null; then
+        echo "online"
+    else
+        echo "partial"  # ping works, SSH doesn't
+    fi
+}
+
+get_offline_nodes() {
+    local state_file="${STATE_DIR}/offline_nodes"
+    if [ -f "$state_file" ]; then
+        cat "$state_file"
+    fi
+}
+
+save_offline_nodes() {
+    local nodes="$1"
+    mkdir -p "$STATE_DIR"
+    echo "$nodes" > "${STATE_DIR}/offline_nodes"
+}
+
+# ── Main Watcher Loop ───────────────────────────────────────────────────────
+main() {
+    mkdir -p "$STATE_DIR"
+
+    log "Node watcher started (interval: ${WATCH_INTERVAL}s)"
+    log "Monitoring nodes from rpi-sync config..."
+
+    # Get all remote nodes from config (exclude NODE_NAME which is local identity)
+    declare -A all_nodes
+    while IFS='|' read -r name host user port; do
+        [ -z "$name" ] && continue
+        all_nodes["$name"]="${host}|${user}|${port:-22}"
+    done < <(grep '^NODE_[0-9]' ~/.rpi-sync/rpi-sync.conf | cut -d'"' -f2)
+
+    log "Found ${#all_nodes[@]} configured nodes"
+
+    # Track offline nodes
+    local offline_nodes=""
+    local first_run=true
+
+    while true; do
+        local newly_online=()
+        local current_offline=""
+
+        for node_name in "${!all_nodes[@]}"; do
+            IFS='|' read -r host user port <<< "${all_nodes[$node_name]}"
+            local status
+            status=$(check_node "$node_name" "$host" "$user" "$port")
+
+            if [ "$status" = "online" ]; then
+                # Check if this node was previously offline
+                if echo "$offline_nodes" | grep -q "^${node_name}$" || [ "$first_run" = true ]; then
+                    newly_online+=("$node_name")
+                fi
+            else
+                current_offline="${current_offline}${node_name}"$'\n'
+            fi
+        done
+
+        # Save current offline nodes
+        save_offline_nodes "$current_offline"
+        offline_nodes="$current_offline"
+
+        # Sync to newly online nodes
+        if [ ${#newly_online[@]} -gt 0 ]; then
+            log "Nodes back online: ${newly_online[*]}"
+            for node in "${newly_online[@]}"; do
+                log "Syncing to $node..."
+                "${SCRIPT_DIR}/rpi-sync" sync all "$node" 2>&1 | while read -r line; do
+                    log "SYNC: $line"
+                done
+            done
+        fi
+
+        first_run=false
+        sleep "$WATCH_INTERVAL"
+    done
+}
+
+# ── CLI Entry Point ─────────────────────────────────────────────────────────
+case "${1:-}" in
+    start)
+        main
+        ;;
+    status)
+        echo "Currently offline nodes:"
+        get_offline_nodes | grep -v '^$' || echo "  (all nodes online)"
+        ;;
+    once)
+        # Run one check cycle and sync to any available nodes
+        declare -A all_nodes
+        while IFS='|' read -r name host user port; do
+            [ -z "$name" ] && continue
+            all_nodes["$name"]="${host}|${user}|${port:-22}"
+        done < <(grep '^NODE_' ~/.rpi-sync/rpi-sync.conf | cut -d'"' -f2)
+
+        for node_name in "${!all_nodes[@]}"; do
+            IFS='|' read -r host user port <<< "${all_nodes[$node_name]}"
+            status=$(check_node "$node_name" "$host" "$user" "$port")
+            if [ "$status" = "online" ]; then
+                log "Syncing to $node_name..."
+                "${SCRIPT_DIR}/rpi-sync" sync all "$node_name"
+            fi
+        done
+        ;;
+    *)
+        echo "Usage: $0 {start|status|once}"
+        echo ""
+        echo "Commands:"
+        echo "  start   - Start continuous monitoring"
+        echo "  status  - Show offline nodes"
+        echo "  once    - Sync once to all available nodes"
+        exit 1
+        ;;
+esac
